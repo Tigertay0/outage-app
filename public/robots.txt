@@ -1,0 +1,11 @@
+# Robots.txt for Outage Tracker
+
+User-agent: *
+Allow: /
+
+# Disallow admin and API routes from being indexed
+Disallow: /api/
+Disallow: /admin/
+
+# Sitemap location (update with your actual domain)
+Sitemap: http://localhost:3000/sitemap.xml
