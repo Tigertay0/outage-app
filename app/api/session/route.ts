@@ -1,0 +1,36 @@
+import { ok, serverError } from "@/lib/api";
+import { isSupabaseConfigured } from "@/lib/data";
+import { getIdentity } from "@/lib/identity";
+import { pushConfigured } from "@/lib/push";
+
+export const dynamic = "force-dynamic";
+
+/**
+ * GET /api/session
+ *
+ * One call that tells the client who it is and which optional capabilities this
+ * deployment actually has, so the UI can hide what is not wired up instead of
+ * offering buttons that fail. Also the request that mints the guest cookie —
+ * route handlers can set cookies, Server Components cannot.
+ */
+export async function GET() {
+  try {
+    const identity = await getIdentity();
+
+    return ok({
+      identity: {
+        id: identity.id,
+        isAuthenticated: identity.isAuthenticated,
+        email: identity.email,
+      },
+      capabilities: {
+        accounts: isSupabaseConfigured(),
+        push: pushConfigured(),
+        /** Local mode means data is demo data and resets on restart. */
+        demoData: !isSupabaseConfigured(),
+      },
+    });
+  } catch (error) {
+    return serverError(error, "GET /api/session");
+  }
+}
