@@ -53,6 +53,12 @@ without it.
 2. [`prisma/migrations/002_search_and_fixes.sql`](prisma/migrations/002_search_and_fixes.sql)
    — the `search_outages` RPC the map actually calls, provider slugs, resolution
    votes, and a fix so withdrawing a confirmation decrements the count.
+3. [`prisma/migrations/003_align_providers.sql`](prisma/migrations/003_align_providers.sql)
+   — makes the database's provider list match `lib/data/seed.ts`.
+4. [`prisma/migrations/004_preference_slugs.sql`](prisma/migrations/004_preference_slugs.sql)
+   — `saved_providers` holds slugs, not UUIDs.
+5. [`prisma/migrations/005_rate_limits.sql`](prisma/migrations/005_rate_limits.sql)
+   — rate limiting that holds across serverless instances.
 
 Both are idempotent, so re-running them is safe.
 
@@ -75,10 +81,11 @@ browser to solve a challenge — CAPTCHA and anonymous guests cannot both be
 enabled with this design. The error is
 `captcha protection: request disallowed (no captcha_token found)`.
 
-That does remove Supabase's own defence against scripted sign-up floods.
-`lib/rate-limit.ts` caps reports per identity, but nothing yet stops a bot from
-churning identities, so add a per-IP limit on `POST /api/outages` before you
-carry real traffic.
+That does remove Supabase's own defence against scripted sign-up floods, which
+is why migration 005 adds a per-client-address limit in Postgres on top of the
+per-identity one — a caller who can mint identities at will is still bounded by
+where they are calling from. Client addresses are hashed before they are stored;
+set `RATE_LIMIT_SALT` to something private so those hashes are not guessable.
 
 ### 5. Restart and check
 

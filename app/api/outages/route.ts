@@ -3,8 +3,9 @@ import { badRequest, ok, readJson, serverError, tooMany } from "@/lib/api";
 import { getRepository } from "@/lib/data";
 import { parseBboxParam } from "@/lib/geo";
 import { getWritableIdentity } from "@/lib/identity";
+import { addressBucket } from "@/lib/client-address";
 import { notifyNewOutage } from "@/lib/push";
-import { LIMITS, pruneRateLimits, rateLimit } from "@/lib/rate-limit";
+import { LIMITS, consumeRateLimit, pruneRateLimits } from "@/lib/rate-limit";
 import {
   SERVICE_TYPES,
   SEVERITIES,
@@ -101,12 +102,26 @@ export async function POST(request: NextRequest) {
     const identity = await getWritableIdentity();
 
     pruneRateLimits();
-    const limit = rateLimit(
+
+    // Two layers. The per-identity limit is the normal control; the per-address
+    // one is what remains when a caller can mint identities at will, which they
+    // can whenever anonymous sign-in is enabled.
+    const perIdentity = await consumeRateLimit(
       `outage:create:${identity.id}`,
       LIMITS.createOutage.limit,
       LIMITS.createOutage.windowMs,
     );
-    if (!limit.allowed) return tooMany(limit);
+    if (!perIdentity.allowed) return tooMany(perIdentity);
+
+    const bucket = addressBucket("outage:create:addr", request);
+    if (bucket) {
+      const perAddress = await consumeRateLimit(
+        bucket,
+        LIMITS.createOutageByAddress.limit,
+        LIMITS.createOutageByAddress.windowMs,
+      );
+      if (!perAddress.allowed) return tooMany(perAddress);
+    }
 
     const parsed = createOutageSchema.safeParse(await readJson(request));
     if (!parsed.success) {
