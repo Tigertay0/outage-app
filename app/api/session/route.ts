@@ -32,6 +32,7 @@ export async function GET() {
          * than letting a report fail at submit time.
          */
         write: identity.canWrite,
+        writeBlockedReason: identity.writeBlockedReason,
         accounts: isSupabaseConfigured(),
         push: pushConfigured(),
         /** Local mode means data is demo data and resets on restart. */

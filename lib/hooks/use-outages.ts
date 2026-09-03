@@ -65,6 +65,8 @@ export interface SessionInfo {
     demoData: boolean;
     /** False when the backend cannot accept writes from this visitor. */
     write: boolean;
+    /** Why, when write is false. */
+    writeBlockedReason: string | null;
   };
 }
 
