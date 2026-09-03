@@ -53,6 +53,21 @@ export interface Repository {
   ): Promise<UserPreferences>;
 }
 
+/**
+ * The caller sent something the backend cannot accept — an unknown provider,
+ * say. Distinct from a genuine failure so the API layer can answer 400 instead
+ * of 500: the request is wrong, not the server.
+ */
+export class InvalidInputError extends Error {
+  constructor(
+    message: string,
+    readonly field?: string,
+  ) {
+    super(message);
+    this.name = "InvalidInputError";
+  }
+}
+
 export const DEFAULT_PREFERENCES: UserPreferences = {
   serviceTypes: ["power", "internet", "cellular", "other"],
   providerIds: [],

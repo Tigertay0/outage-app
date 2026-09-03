@@ -1,5 +1,6 @@
 import "server-only";
 import { NextResponse } from "next/server";
+import { InvalidInputError } from "./data/repository";
 import type { RateLimitResult } from "./rate-limit";
 
 /** Shared response helpers so every route reports errors the same way. */
@@ -27,10 +28,20 @@ export function tooMany(result: RateLimitResult) {
 }
 
 /**
- * Convert a thrown error into a 500 without leaking internals to the client.
- * The full message still goes to the server log.
+ * Convert a thrown error into a response.
+ *
+ * A bad request from the caller becomes a 400 carrying the reason; anything
+ * else becomes a 500 whose detail stays in the server log rather than going to
+ * the client.
  */
 export function serverError(error: unknown, context: string) {
+  if (error instanceof InvalidInputError) {
+    return badRequest(
+      error.message,
+      error.field ? { [error.field]: error.message } : undefined,
+    );
+  }
+
   console.error(`[${context}]`, error);
   return NextResponse.json(
     { error: "Something went wrong on our end." },

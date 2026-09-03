@@ -154,8 +154,9 @@ CREATE OR REPLACE FUNCTION search_outages(
   resolved_within_hours INTEGER DEFAULT 0,
   max_results INTEGER DEFAULT 1000,
   -- Lets the detail view fetch one known outage without a second function.
-  -- When set, the status and resolved-window filters are bypassed: an id was
-  -- asked for by name, so a resolved outage should still come back.
+  -- When set, the viewport, status and resolved-window filters are all
+  -- bypassed: an id was asked for by name, so a resolved outage somewhere
+  -- off-screen should still come back.
   outage_ids UUID[] DEFAULT NULL
 )
 RETURNS TABLE (
@@ -180,6 +181,16 @@ RETURNS TABLE (
   verification_count INTEGER,
   is_verified BOOLEAN
 ) AS $$
+DECLARE
+  -- ST_MakeEnvelope spanning a full 360 degrees produces an antipodal edge,
+  -- which geography cannot represent — it raises "Antipodal (180 degrees long)
+  -- edge detected!". The defaults below are exactly that span, so clamp just
+  -- inside the antimeridian and the poles. The excluded sliver is open ocean.
+  west  DOUBLE PRECISION := GREATEST(min_lng, -179.999999);
+  east  DOUBLE PRECISION := LEAST(max_lng, 179.999999);
+  south DOUBLE PRECISION := GREATEST(min_lat, -89.999999);
+  north DOUBLE PRECISION := LEAST(max_lat, 89.999999);
+  box GEOGRAPHY := ST_MakeEnvelope(west, south, east, north, 4326)::geography;
 BEGIN
   RETURN QUERY
   SELECT
@@ -206,10 +217,7 @@ BEGIN
   FROM outages o
   LEFT JOIN providers p ON p.id = o.provider_id
   WHERE
-    ST_Intersects(
-      o.location,
-      ST_MakeEnvelope(min_lng, min_lat, max_lng, max_lat, 4326)::geography
-    )
+    (outage_ids IS NOT NULL OR ST_Intersects(o.location, box))
     AND (
       outage_ids IS NOT NULL
       OR o.status = 'active'
