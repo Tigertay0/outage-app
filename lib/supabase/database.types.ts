@@ -344,6 +344,19 @@ export interface Database {
           is_verified: boolean
         }[]
       }
+      /** Added in migration 005 — durable rate limiting shared across instances. */
+      consume_rate_limit: {
+        Args: {
+          bucket_key: string
+          max_hits: number
+          window_seconds: number
+        }
+        Returns: {
+          allowed: boolean
+          remaining: number
+          retry_after: number
+        }[]
+      }
       /** Added in migration 002 — backs the report rate limit. */
       recent_report_count: {
         Args: {

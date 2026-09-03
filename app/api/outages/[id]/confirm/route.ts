@@ -1,7 +1,7 @@
 import { notFound, ok, serverError, tooMany } from "@/lib/api";
 import { getRepository } from "@/lib/data";
 import { getWritableIdentity } from "@/lib/identity";
-import { LIMITS, rateLimit } from "@/lib/rate-limit";
+import { LIMITS, consumeRateLimit } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 
@@ -14,7 +14,7 @@ export async function POST(
     const { id } = await params;
     const identity = await getWritableIdentity();
 
-    const limit = rateLimit(
+    const limit = await consumeRateLimit(
       `outage:confirm:${identity.id}`,
       LIMITS.confirm.limit,
       LIMITS.confirm.windowMs,
