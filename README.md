@@ -56,6 +56,13 @@ attribute comments, so reporting works before anyone signs up — which matters
 for an app whose data comes entirely from its users. Signing in with Supabase
 Auth upgrades the same actions to a durable account.
 
+**Two kinds of data, kept apart.** Reports come from people; a separate
+ingestion layer polls public feeds every fifteen minutes. Anything ingested is
+marked `origin: 'official'` and badged in the UI, because a confirmation count
+means something different for a neighbour's report than for a utility's feed.
+Weather warnings go further and live in their own table — a storm is a reason to
+expect an outage, not evidence of one.
+
 **Filters and viewport are pushed into SQL.** The map queries
 `search_outages` (migration 002) with the viewport bounding box and every active
 filter, so panning fetches only what is on screen rather than filtering a full
@@ -70,13 +77,6 @@ npm run typecheck  # tsc --noEmit
 npm run lint       # eslint
 npm run icons      # regenerate the PWA icon set
 ```
-
-**Two kinds of data, kept apart.** Reports come from people; a separate
-ingestion layer polls public feeds every fifteen minutes. Anything ingested is
-marked `origin: 'official'` and badged in the UI, because a confirmation count
-means something different for a neighbour's report than for a utility's feed.
-Weather warnings go further and live in their own table — a storm is a reason to
-expect an outage, not evidence of one.
 
 ## Not built yet
 
