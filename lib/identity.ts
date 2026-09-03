@@ -44,17 +44,29 @@ export interface Identity {
    * identity is a cookie id that `auth.users` has never heard of.
    */
   canWrite: boolean;
+  /**
+   * Why writes are unavailable, when they are. Surfaced to the client so a
+   * visitor is told "reporting is unavailable" up front rather than at submit
+   * time, and so a misconfigured deployment is diagnosable without server log
+   * access. Carries Supabase's own message, which names the setting at fault.
+   */
+  writeBlockedReason: string | null;
 }
 
-function guestIdentity(id: string): Identity {
+function guestIdentity(id: string, reason: string | null = null): Identity {
+  const supabase = isSupabaseConfigured();
   return {
     id,
     isAuthenticated: false,
     isAnonymous: false,
     email: null,
-    // A cookie id is not a UUID and has no auth.users row, so every insert
-    // referencing it fails on the foreign key and on RLS.
-    canWrite: !isSupabaseConfigured(),
+    // Against Supabase, a cookie id is not a UUID and has no auth.users row, so
+    // every insert referencing it fails on the foreign key and on RLS. Against
+    // the local store there is nothing to be consistent with, so it is fine.
+    canWrite: !supabase,
+    writeBlockedReason: supabase
+      ? (reason ?? "Could not create a guest session.")
+      : null,
   };
 }
 
@@ -96,6 +108,8 @@ export async function getIdentity(
     return guestIdentity(await readOrCreateGuestCookie());
   }
 
+  let reason: string | null = null;
+
   try {
     const supabase = await createServerSupabaseClient();
 
@@ -110,6 +124,7 @@ export async function getIdentity(
         isAnonymous: user.is_anonymous ?? false,
         email: user.email ?? null,
         canWrite: true,
+        writeBlockedReason: null,
       };
     }
 
@@ -123,6 +138,7 @@ export async function getIdentity(
           isAnonymous: true,
           email: null,
           canWrite: true,
+          writeBlockedReason: null,
         };
       }
 
@@ -134,19 +150,23 @@ export async function getIdentity(
         //     -> Authentication / Attack Protection. A server-side sign-in has
         //        no browser to solve a challenge, so CAPTCHA and anonymous
         //        guests are mutually exclusive with this design.
+        reason = error.message;
         console.error(
           "[identity] anonymous sign-in failed:",
           error.message,
           "— check the Authentication settings for this Supabase project.",
         );
       }
+    } else {
+      reason = "No session, and this request may not create one.";
     }
   } catch (error) {
     // A misconfigured project should degrade to read-only, not 500 the page.
+    reason = error instanceof Error ? error.message : String(error);
     console.error("[identity] Supabase auth unavailable:", error);
   }
 
-  return guestIdentity(await readOrCreateGuestCookie());
+  return guestIdentity(await readOrCreateGuestCookie(), reason);
 }
 
 /**
