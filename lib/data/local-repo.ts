@@ -2,6 +2,8 @@ import { randomUUID } from "node:crypto";
 import { VERIFICATION_THRESHOLD } from "@/lib/constants";
 import { isWithinBounds } from "@/lib/geo";
 import type {
+  Advisory,
+  BoundingBox,
   CreateOutageInput,
   Outage,
   OutageComment,
@@ -79,6 +81,8 @@ function seed(): Store {
       estimatedRestoration: row.etaHours ? hoursAhead(row.etaHours) : null,
       verificationCount: row.confirmations,
       isVerified: row.confirmations >= VERIFICATION_THRESHOLD,
+      origin: "crowdsourced",
+      sourceName: null,
     });
 
     // Seeded confirmations are attributed to synthetic identities so the
@@ -147,6 +151,49 @@ export class LocalRepository implements Repository {
     return SEED_PROVIDERS;
   }
 
+  /**
+   * Demo advisories, so the hazard layer is visible without a database. Real
+   * ones come from the National Weather Service via lib/ingest.
+   */
+  async listAdvisories(bounds?: BoundingBox): Promise<Advisory[]> {
+    const all: Advisory[] = [
+      {
+        id: "demo-advisory-1",
+        sourceName: "demo",
+        sourceId: "1",
+        kind: "High Wind Warning",
+        severity: "complete",
+        headline: "High Wind Warning until 8 PM",
+        description:
+          "Southwest winds 30 to 40 mph with gusts up to 60 mph. Expect downed trees and scattered power outages.",
+        areaDescription: "San Francisco Bay Area",
+        url: null,
+        latitude: 37.83,
+        longitude: -122.3,
+        startsAt: hoursAgo(2),
+        endsAt: hoursAhead(6),
+      },
+      {
+        id: "demo-advisory-2",
+        sourceName: "demo",
+        sourceId: "2",
+        kind: "Winter Storm Warning",
+        severity: "degraded",
+        headline: "Winter Storm Warning in effect",
+        description:
+          "Heavy snow and ice accumulation likely. Power outages and tree damage are possible.",
+        areaDescription: "Northern Illinois",
+        url: null,
+        latitude: 41.95,
+        longitude: -87.9,
+        startsAt: hoursAgo(4),
+        endsAt: hoursAhead(14),
+      },
+    ];
+
+    return bounds ? all.filter((a) => isWithinBounds(a, bounds)) : all;
+  }
+
   async listOutages(query: OutageQuery): Promise<Outage[]> {
     const store = getStore();
     const results = [...store.outages.values()].filter((o) => matches(o, query));
@@ -205,6 +252,8 @@ export class LocalRepository implements Repository {
       // The reporter implicitly confirms their own report.
       verificationCount: 1,
       isVerified: false,
+      origin: "crowdsourced",
+      sourceName: null,
     };
 
     store.outages.set(id, outage);
