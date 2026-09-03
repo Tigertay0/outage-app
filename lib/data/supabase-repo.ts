@@ -12,7 +12,11 @@ import type {
   Severity,
   UserPreferences,
 } from "@/lib/types";
-import { DEFAULT_PREFERENCES, type Repository } from "./repository";
+import {
+  DEFAULT_PREFERENCES,
+  InvalidInputError,
+  type Repository,
+} from "./repository";
 
 /**
  * Supabase/PostGIS backend. Requires migrations 001 and 002 to be applied.
@@ -77,18 +81,34 @@ export class SupabaseRepository implements Repository {
     return createServerSupabaseClient();
   }
 
-  /** Slug -> UUID, needed because writes still reference the real key. */
+  /**
+   * Slug -> UUID, needed because writes still reference the real key.
+   *
+   * Throws on an unknown slug rather than returning null. Silently dropping it
+   * would store a report with no provider — which still shows on the map but
+   * loses most of what makes it useful, and hides the mismatch that caused it.
+   */
   private async providerUuid(slug: string | null): Promise<string | null> {
     if (!slug) return null;
 
     const supabase = await this.client();
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("providers")
       .select("id")
       .eq("slug", slug)
       .maybeSingle();
 
-    return (data as { id: string } | null)?.id ?? null;
+    if (error) throw new Error(`providerUuid: ${error.message}`);
+
+    const row = data as { id: string } | null;
+    if (!row) {
+      throw new InvalidInputError(
+        `No provider called "${slug}".`,
+        "providerId",
+      );
+    }
+
+    return row.id;
   }
 
   async listProviders(): Promise<Provider[]> {

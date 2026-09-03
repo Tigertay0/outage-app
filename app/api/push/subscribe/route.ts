@@ -1,5 +1,5 @@
 import { badRequest, ok, readJson, serverError } from "@/lib/api";
-import { getIdentity } from "@/lib/identity";
+import { getWritableIdentity } from "@/lib/identity";
 import { pushConfigured, removeSubscription, saveSubscription } from "@/lib/push";
 import { fieldErrors, preferencesSchema, pushSubscriptionSchema } from "@/lib/validation";
 import { z } from "zod";
@@ -24,7 +24,7 @@ export async function POST(request: Request) {
       return badRequest("Push notifications are not configured on this server");
     }
 
-    const identity = await getIdentity();
+    const identity = await getWritableIdentity();
     const parsed = bodySchema.safeParse(await readJson(request));
     if (!parsed.success) {
       return badRequest("Invalid subscription", fieldErrors(parsed.error));

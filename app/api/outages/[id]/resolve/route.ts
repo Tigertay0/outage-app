@@ -1,6 +1,6 @@
 import { notFound, ok, serverError } from "@/lib/api";
 import { getRepository } from "@/lib/data";
-import { getIdentity } from "@/lib/identity";
+import { getWritableIdentity } from "@/lib/identity";
 
 export const dynamic = "force-dynamic";
 
@@ -17,7 +17,7 @@ export async function POST(
 ) {
   try {
     const { id } = await params;
-    const identity = await getIdentity();
+    const identity = await getWritableIdentity();
 
     const outage = await getRepository().resolveOutage(id, identity.id);
     if (!outage) return notFound("That outage no longer exists");

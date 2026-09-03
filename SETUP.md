@@ -56,7 +56,31 @@ without it.
 
 Both are idempotent, so re-running them is safe.
 
-### 4. Restart and check
+### 4. Enable anonymous sign-ins
+
+**Authentication → Sign In / Providers → Anonymous sign-ins → on.**
+
+This is not optional. `outages.reported_by` is a UUID with a foreign key to
+`auth.users`, and every RLS policy tests `auth.role() = 'authenticated'` and
+`auth.uid()`. A visitor without an account needs a real auth row to satisfy any
+of that, so `lib/identity.ts` signs guests in anonymously. Without this,
+browsing works and every write fails.
+
+Anonymous users can later be upgraded to permanent accounts without losing the
+reports and confirmations attached to them.
+
+**Also turn CAPTCHA off** under **Authentication → Attack Protection**, if it is
+on. The sign-in happens server-side in a Route Handler, where there is no
+browser to solve a challenge — CAPTCHA and anonymous guests cannot both be
+enabled with this design. The error is
+`captcha protection: request disallowed (no captcha_token found)`.
+
+That does remove Supabase's own defence against scripted sign-up floods.
+`lib/rate-limit.ts` caps reports per identity, but nothing yet stops a bot from
+churning identities, so add a per-IP limit on `POST /api/outages` before you
+carry real traffic.
+
+### 5. Restart and check
 
 ```bash
 npm run dev

@@ -1,6 +1,6 @@
 import { ok, serverError } from "@/lib/api";
 import { isSupabaseConfigured } from "@/lib/data";
-import { getIdentity } from "@/lib/identity";
+import { getWritableIdentity } from "@/lib/identity";
 import { pushConfigured } from "@/lib/push";
 
 export const dynamic = "force-dynamic";
@@ -15,15 +15,23 @@ export const dynamic = "force-dynamic";
  */
 export async function GET() {
   try {
-    const identity = await getIdentity();
+    const identity = await getWritableIdentity();
 
     return ok({
       identity: {
         id: identity.id,
         isAuthenticated: identity.isAuthenticated,
+        isAnonymous: identity.isAnonymous,
         email: identity.email,
       },
       capabilities: {
+        /**
+         * False when Supabase is connected but could not issue an identity the
+         * database will accept — almost always because anonymous sign-in is
+         * disabled for the project. Reads still work; the UI says so rather
+         * than letting a report fail at submit time.
+         */
+        write: identity.canWrite,
         accounts: isSupabaseConfigured(),
         push: pushConfigured(),
         /** Local mode means data is demo data and resets on restart. */
