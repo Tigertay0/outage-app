@@ -60,7 +60,7 @@ without it.
 5. [`prisma/migrations/005_rate_limits.sql`](prisma/migrations/005_rate_limits.sql)
    — rate limiting that holds across serverless instances.
 
-Both are idempotent, so re-running them is safe.
+All five are idempotent, so re-running them is safe.
 
 ### 4. Enable anonymous sign-ins
 
@@ -201,11 +201,12 @@ environment variables in the host's dashboard.
 
 Two things to know before carrying real traffic:
 
-- **Rate limiting is per-process.** [`lib/rate-limit.ts`](lib/rate-limit.ts)
-  holds counters in memory, so behind several instances the effective limit is
-  multiplied by the instance count. Move the store to Redis or Postgres before
-  that matters.
-- **Push subscriptions are per-process** for the same reason.
+- **Set `RATE_LIMIT_SALT`.** Rate limiting is durable in Postgres once Supabase
+  is configured (migration 005), but the address hashes are only unguessable if
+  the salt is private.
+- **Push subscriptions are still per-process.** `lib/push.ts` holds them in
+  memory, so they are lost on restart and not shared between instances. The
+  `push_subscriptions` table already exists for moving them into Postgres.
 
 ---
 
