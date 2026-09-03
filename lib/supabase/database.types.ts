@@ -29,6 +29,7 @@ export interface Database {
           service_type: 'power' | 'internet' | 'cellular' | 'other'
           logo_url: string | null
           official_status_url: string | null
+          slug: string | null
           created_at: string
           updated_at: string
         }
@@ -38,6 +39,7 @@ export interface Database {
           service_type: 'power' | 'internet' | 'cellular' | 'other'
           logo_url?: string | null
           official_status_url?: string | null
+          slug?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -47,9 +49,11 @@ export interface Database {
           service_type?: 'power' | 'internet' | 'cellular' | 'other'
           logo_url?: string | null
           official_status_url?: string | null
+          slug?: string | null
           created_at?: string
           updated_at?: string
         }
+        Relationships: []
       }
       outages: {
         Row: {
@@ -118,6 +122,7 @@ export interface Database {
           created_at?: string
           updated_at?: string
         }
+        Relationships: []
       }
       outage_confirmations: {
         Row: {
@@ -138,6 +143,29 @@ export interface Database {
           user_id?: string
           confirmed_at?: string
         }
+        Relationships: []
+      }
+      /** Added in migration 002 — "it's back for me" votes. */
+      outage_resolutions: {
+        Row: {
+          id: string
+          outage_id: string
+          user_id: string
+          reported_at: string
+        }
+        Insert: {
+          id?: string
+          outage_id: string
+          user_id: string
+          reported_at?: string
+        }
+        Update: {
+          id?: string
+          outage_id?: string
+          user_id?: string
+          reported_at?: string
+        }
+        Relationships: []
       }
       outage_comments: {
         Row: {
@@ -164,6 +192,7 @@ export interface Database {
           comment_type?: 'update' | 'resolution' | 'escalation'
           created_at?: string
         }
+        Relationships: []
       }
       user_preferences: {
         Row: {
@@ -199,6 +228,7 @@ export interface Database {
           created_at?: string
           updated_at?: string
         }
+        Relationships: []
       }
       push_subscriptions: {
         Row: {
@@ -222,6 +252,7 @@ export interface Database {
           keys?: Json
           created_at?: string
         }
+        Relationships: []
       }
     }
     Views: {
@@ -276,8 +307,59 @@ export interface Database {
           is_verified: boolean
         }[]
       }
+      /** Added in migration 002 — the filtered viewport query the map uses. */
+      search_outages: {
+        Args: {
+          min_lat?: number
+          min_lng?: number
+          max_lat?: number
+          max_lng?: number
+          service_types?: string[] | null
+          provider_slugs?: string[] | null
+          severities?: string[] | null
+          resolved_within_hours?: number
+          max_results?: number
+          outage_ids?: string[] | null
+        }
+        Returns: {
+          id: string
+          provider_id: string | null
+          provider_slug: string | null
+          provider_name: string | null
+          service_type: 'power' | 'internet' | 'cellular' | 'other'
+          severity: 'complete' | 'degraded' | 'intermittent'
+          status: 'active' | 'resolved' | 'disputed'
+          latitude: number
+          longitude: number
+          address: string | null
+          city: string | null
+          state: string | null
+          zip_code: string | null
+          description: string | null
+          reported_by: string | null
+          reported_at: string
+          resolved_at: string | null
+          estimated_restoration: string | null
+          verification_count: number
+          is_verified: boolean
+        }[]
+      }
+      /** Added in migration 002 — backs the report rate limit. */
+      recent_report_count: {
+        Args: {
+          reporter: string
+          window_minutes?: number
+        }
+        Returns: number
+      }
     }
     Enums: {
+      [_ in never]: never
+    }
+    // Required for this type to satisfy supabase-js's GenericSchema. Without
+    // it the client silently falls back to untyped queries, which is how the
+    // rpc() calls in lib/data/supabase-repo.ts lose their argument types.
+    CompositeTypes: {
       [_ in never]: never
     }
   }

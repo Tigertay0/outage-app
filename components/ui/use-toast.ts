@@ -14,12 +14,14 @@ type ToasterToast = ToastProps & {
   action?: ToastActionElement
 }
 
-const actionTypes = {
-  ADD_TOAST: "ADD_TOAST",
-  UPDATE_TOAST: "UPDATE_TOAST",
-  DISMISS_TOAST: "DISMISS_TOAST",
-  REMOVE_TOAST: "REMOVE_TOAST",
-} as const
+// A type rather than a const object: the reducer matches on string literals
+// directly, so the runtime value was never read.
+type ActionType = {
+  ADD_TOAST: "ADD_TOAST"
+  UPDATE_TOAST: "UPDATE_TOAST"
+  DISMISS_TOAST: "DISMISS_TOAST"
+  REMOVE_TOAST: "REMOVE_TOAST"
+}
 
 let count = 0
 
@@ -28,7 +30,6 @@ function genId() {
   return count.toString()
 }
 
-type ActionType = typeof actionTypes
 
 type Action =
   | {
