@@ -7,7 +7,7 @@ import {
   tooMany,
 } from "@/lib/api";
 import { getRepository } from "@/lib/data";
-import { getIdentity } from "@/lib/identity";
+import { getWritableIdentity } from "@/lib/identity";
 import { LIMITS, rateLimit } from "@/lib/rate-limit";
 import { commentSchema, fieldErrors } from "@/lib/validation";
 
@@ -20,7 +20,7 @@ export async function POST(
 ) {
   try {
     const { id } = await params;
-    const identity = await getIdentity();
+    const identity = await getWritableIdentity();
 
     const limit = rateLimit(
       `outage:comment:${identity.id}`,

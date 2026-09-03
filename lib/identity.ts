@@ -7,11 +7,26 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 /**
  * Who is acting on a request.
  *
- * The PRD wants guest browsing plus accounts (sections 4.3, 7). Rather than
- * gating writes behind sign-up — which would kill the crowdsourcing the whole
- * app depends on — a guest gets a random id in an httpOnly cookie. That is
- * enough to enforce one-confirmation-per-person and to attribute comments,
- * while signing in upgrades the same actions to a durable account.
+ * The PRD wants guest browsing plus accounts (sections 4.3, 7). Gating writes
+ * behind sign-up would starve the crowdsourcing the app depends on, so a
+ * visitor with no account still gets a durable identity — enough to enforce
+ * one confirmation per person and to attribute comments.
+ *
+ * How that identity is minted depends on the backend:
+ *
+ *   - Supabase: an anonymous sign-in, which creates a real `auth.users` row.
+ *     This matters because `outages.reported_by` is a UUID with a foreign key
+ *     to that table, and every RLS policy tests `auth.role() = 'authenticated'`
+ *     and `auth.uid()`. A synthetic id satisfies none of those. Anonymous users
+ *     can later be upgraded to a permanent account without losing their
+ *     history.
+ *   - Local store: a random id in an httpOnly cookie, since there is no
+ *     database to be consistent with.
+ *
+ * Anonymous sign-in must be enabled for the project (Authentication →
+ * Sign In / Providers → Anonymous sign-ins). If it is off, this falls back to
+ * the cookie identity so reads keep working, and `canWrite` reports false so
+ * the caller can say something useful instead of surfacing a 500.
  */
 
 export const GUEST_COOKIE = "outage_guest_id";
@@ -19,39 +34,35 @@ const GUEST_MAX_AGE_SECONDS = 60 * 60 * 24 * 365;
 
 export interface Identity {
   id: string;
-  /** True when backed by a real Supabase account rather than a guest cookie. */
+  /** True for a real Supabase user, anonymous or not. */
   isAuthenticated: boolean;
+  /** True when this identity is an anonymous Supabase user. */
+  isAnonymous: boolean;
   email: string | null;
+  /**
+   * Whether writes will pass the database's constraints. False means the
+   * identity is a cookie id that `auth.users` has never heard of.
+   */
+  canWrite: boolean;
 }
 
-/**
- * Resolve the caller. Never returns null: an unrecognised visitor is issued a
- * guest id. Note that cookie writes are only possible in Route Handlers and
- * Server Actions, so a guest id minted during a Server Component render is
- * returned but not persisted — `ensureGuestCookie` handles that case.
- */
-export async function getIdentity(): Promise<Identity> {
-  if (isSupabaseConfigured()) {
-    try {
-      const supabase = await createServerSupabaseClient();
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+function guestIdentity(id: string): Identity {
+  return {
+    id,
+    isAuthenticated: false,
+    isAnonymous: false,
+    email: null,
+    // A cookie id is not a UUID and has no auth.users row, so every insert
+    // referencing it fails on the foreign key and on RLS.
+    canWrite: !isSupabaseConfigured(),
+  };
+}
 
-      if (user) {
-        return { id: user.id, isAuthenticated: true, email: user.email ?? null };
-      }
-    } catch {
-      // Misconfigured Supabase should degrade to guest mode, not 500 the page.
-    }
-  }
-
+/** Read the guest cookie, minting and persisting one if absent. */
+async function readOrCreateGuestCookie(): Promise<string> {
   const store = await cookies();
   const existing = store.get(GUEST_COOKIE)?.value;
-
-  if (existing) {
-    return { id: existing, isAuthenticated: false, email: null };
-  }
+  if (existing) return existing;
 
   const fresh = `guest_${randomUUID()}`;
   try {
@@ -63,18 +74,85 @@ export async function getIdentity(): Promise<Identity> {
       maxAge: GUEST_MAX_AGE_SECONDS,
     });
   } catch {
-    // Called from a Server Component — the value is still usable for this
-    // request, it just will not stick until a route handler sets it.
+    // Called from a Server Component, which cannot set cookies. The value is
+    // still usable for this request; /api/session persists it properly.
   }
 
-  return { id: fresh, isAuthenticated: false, email: null };
+  return fresh;
 }
 
 /**
- * Writes that need a durable identity. Guests are allowed, because report and
- * confirm are the product's core loop, but the caller can require an account
- * by checking `isAuthenticated`.
+ * Resolve the caller.
+ *
+ * `allowSignIn` must only be true in Route Handlers and Server Actions.
+ * Creating a session writes cookies, and a Server Component cannot — so
+ * calling it there would mint a fresh anonymous user on every single render
+ * instead of reusing one.
  */
-export async function requireIdentity(): Promise<Identity> {
-  return getIdentity();
+export async function getIdentity(
+  { allowSignIn = false }: { allowSignIn?: boolean } = {},
+): Promise<Identity> {
+  if (!isSupabaseConfigured()) {
+    return guestIdentity(await readOrCreateGuestCookie());
+  }
+
+  try {
+    const supabase = await createServerSupabaseClient();
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (user) {
+      return {
+        id: user.id,
+        isAuthenticated: true,
+        isAnonymous: user.is_anonymous ?? false,
+        email: user.email ?? null,
+        canWrite: true,
+      };
+    }
+
+    if (allowSignIn) {
+      const { data, error } = await supabase.auth.signInAnonymously();
+
+      if (!error && data.user) {
+        return {
+          id: data.user.id,
+          isAuthenticated: true,
+          isAnonymous: true,
+          email: null,
+          canWrite: true,
+        };
+      }
+
+      if (error) {
+        // Two project settings block this, and they report differently:
+        //   "Anonymous sign-ins are disabled"
+        //     -> Authentication / Sign In / Providers
+        //   "captcha protection: request disallowed"
+        //     -> Authentication / Attack Protection. A server-side sign-in has
+        //        no browser to solve a challenge, so CAPTCHA and anonymous
+        //        guests are mutually exclusive with this design.
+        console.error(
+          "[identity] anonymous sign-in failed:",
+          error.message,
+          "— check the Authentication settings for this Supabase project.",
+        );
+      }
+    }
+  } catch (error) {
+    // A misconfigured project should degrade to read-only, not 500 the page.
+    console.error("[identity] Supabase auth unavailable:", error);
+  }
+
+  return guestIdentity(await readOrCreateGuestCookie());
+}
+
+/**
+ * Identity for a request that is about to write. Creates a session if there
+ * is none, so this is only valid inside a Route Handler or Server Action.
+ */
+export async function getWritableIdentity(): Promise<Identity> {
+  return getIdentity({ allowSignIn: true });
 }

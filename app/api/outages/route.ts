@@ -2,7 +2,7 @@ import type { NextRequest } from "next/server";
 import { badRequest, ok, readJson, serverError, tooMany } from "@/lib/api";
 import { getRepository } from "@/lib/data";
 import { parseBboxParam } from "@/lib/geo";
-import { getIdentity } from "@/lib/identity";
+import { getWritableIdentity } from "@/lib/identity";
 import { notifyNewOutage } from "@/lib/push";
 import { LIMITS, pruneRateLimits, rateLimit } from "@/lib/rate-limit";
 import {
@@ -98,7 +98,7 @@ export async function GET(request: NextRequest) {
 /** POST /api/outages — file a new report. */
 export async function POST(request: NextRequest) {
   try {
-    const identity = await getIdentity();
+    const identity = await getWritableIdentity();
 
     pruneRateLimits();
     const limit = rateLimit(
