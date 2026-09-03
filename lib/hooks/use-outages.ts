@@ -53,8 +53,19 @@ export function useProviders() {
 }
 
 export interface SessionInfo {
-  identity: { id: string; isAuthenticated: boolean; email: string | null };
-  capabilities: { accounts: boolean; push: boolean; demoData: boolean };
+  identity: {
+    id: string;
+    isAuthenticated: boolean;
+    isAnonymous: boolean;
+    email: string | null;
+  };
+  capabilities: {
+    accounts: boolean;
+    push: boolean;
+    demoData: boolean;
+    /** False when the backend cannot accept writes from this visitor. */
+    write: boolean;
+  };
 }
 
 export function useSession() {

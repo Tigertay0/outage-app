@@ -1,6 +1,6 @@
 import { badRequest, ok, readJson, serverError } from "@/lib/api";
 import { DEFAULT_PREFERENCES, getRepository } from "@/lib/data";
-import { getIdentity } from "@/lib/identity";
+import { getWritableIdentity } from "@/lib/identity";
 import { fieldErrors, preferencesSchema } from "@/lib/validation";
 
 export const dynamic = "force-dynamic";
@@ -13,7 +13,7 @@ export const dynamic = "force-dynamic";
  */
 export async function GET() {
   try {
-    const identity = await getIdentity();
+    const identity = await getWritableIdentity();
     const preferences = await getRepository().getPreferences(identity.id);
 
     return ok({
@@ -27,7 +27,7 @@ export async function GET() {
 
 export async function PUT(request: Request) {
   try {
-    const identity = await getIdentity();
+    const identity = await getWritableIdentity();
 
     const parsed = preferencesSchema.safeParse(await readJson(request));
     if (!parsed.success) {

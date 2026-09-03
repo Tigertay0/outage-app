@@ -198,7 +198,7 @@ export interface Database {
         Row: {
           id: string
           user_id: string
-          saved_providers: string[]
+          saved_providers: string[] // provider slugs (migration 004)
           saved_locations: Json
           notification_settings: Json
           default_map_center: unknown // PostGIS geography type

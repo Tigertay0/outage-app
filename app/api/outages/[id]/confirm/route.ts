@@ -1,6 +1,6 @@
 import { notFound, ok, serverError, tooMany } from "@/lib/api";
 import { getRepository } from "@/lib/data";
-import { getIdentity } from "@/lib/identity";
+import { getWritableIdentity } from "@/lib/identity";
 import { LIMITS, rateLimit } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
@@ -12,7 +12,7 @@ export async function POST(
 ) {
   try {
     const { id } = await params;
-    const identity = await getIdentity();
+    const identity = await getWritableIdentity();
 
     const limit = rateLimit(
       `outage:confirm:${identity.id}`,
@@ -37,7 +37,7 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params;
-    const identity = await getIdentity();
+    const identity = await getWritableIdentity();
 
     const count = await getRepository().unconfirmOutage(id, identity.id);
     if (count === null) return notFound("That outage no longer exists");
