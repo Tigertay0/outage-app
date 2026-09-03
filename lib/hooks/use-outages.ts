@@ -3,6 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useFilters } from "@/lib/store/filters";
 import type {
+  Advisory,
   BoundingBox,
   CreateOutageInput,
   Outage,
@@ -127,6 +128,36 @@ export function useOutages(bounds: BoundingBox | null) {
       return request<{ outages: Outage[] }>(`/api/outages?${params}`);
     },
     select: (data) => data.outages,
+  });
+}
+
+/**
+ * Hazard advisories in view.
+ *
+ * Separate query from useOutages so the layer can be toggled off without
+ * disturbing the outage fetch, and because advisories change far more slowly —
+ * the ingest run polls upstream every fifteen minutes.
+ */
+export function useAdvisories(bounds: BoundingBox | null, enabled: boolean) {
+  const rounded = bounds ? roundBounds(bounds) : null;
+
+  return useQuery({
+    queryKey: ["advisories", rounded],
+    enabled: enabled && rounded !== null,
+    staleTime: 5 * 60 * 1000,
+    refetchInterval: 5 * 60 * 1000,
+    placeholderData: (previous) => previous,
+    queryFn: () => {
+      const params = new URLSearchParams();
+      if (rounded) {
+        params.set(
+          "bbox",
+          [rounded.minLng, rounded.minLat, rounded.maxLng, rounded.maxLat].join(","),
+        );
+      }
+      return request<{ advisories: Advisory[] }>(`/api/advisories?${params}`);
+    },
+    select: (data) => data.advisories,
   });
 }
 

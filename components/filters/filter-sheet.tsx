@@ -46,6 +46,8 @@ export function FilterSheet({
   const toggleProvider = useFilters((s) => s.toggleProvider);
   const setProviders = useFilters((s) => s.setProviders);
   const setResolvedHours = useFilters((s) => s.setResolvedHours);
+  const showAdvisories = useFilters((s) => s.showAdvisories);
+  const setShowAdvisories = useFilters((s) => s.setShowAdvisories);
   const selectAll = useFilters((s) => s.selectAll);
   const deselectAll = useFilters((s) => s.deselectAll);
 
@@ -234,6 +236,20 @@ export function FilterSheet({
                 onCheckedChange={(checked) =>
                   setResolvedHours(checked ? 6 : 0)
                 }
+              />
+            </Label>
+
+            <Label className="flex cursor-pointer items-center justify-between gap-3 py-2">
+              <span>
+                <span className="text-sm font-medium">Storm warnings</span>
+                <span className="block text-xs font-normal text-muted-foreground">
+                  Weather that tends to cause outages, from the National Weather
+                  Service
+                </span>
+              </span>
+              <Checkbox
+                checked={showAdvisories}
+                onCheckedChange={(checked) => setShowAdvisories(Boolean(checked))}
               />
             </Label>
           </section>
