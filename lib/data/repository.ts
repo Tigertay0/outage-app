@@ -1,4 +1,6 @@
 import type {
+  Advisory,
+  BoundingBox,
   CreateOutageInput,
   Outage,
   OutageComment,
@@ -25,6 +27,9 @@ export interface Repository {
   listProviders(): Promise<Provider[]>;
 
   listOutages(query: OutageQuery): Promise<Outage[]>;
+
+  /** Hazard advisories in view — weather warnings and the like. */
+  listAdvisories(bounds?: BoundingBox): Promise<Advisory[]>;
 
   getOutage(id: string, identity: string | null): Promise<OutageDetail | null>;
 

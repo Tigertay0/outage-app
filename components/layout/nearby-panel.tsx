@@ -106,10 +106,16 @@ export function NearbyPanel({
                       <span className="truncate text-sm font-medium">
                         {outage.providerName ?? "Unknown provider"}
                       </span>
-                      {outage.isVerified && (
+                      {outage.origin === "official" ? (
                         <Badge variant="outline" className="shrink-0 px-1.5 py-0">
-                          Verified
+                          Official
                         </Badge>
+                      ) : (
+                        outage.isVerified && (
+                          <Badge variant="outline" className="shrink-0 px-1.5 py-0">
+                            Verified
+                          </Badge>
+                        )
                       )}
                     </span>
                     <span className="block truncate text-xs text-muted-foreground">
@@ -123,7 +129,9 @@ export function NearbyPanel({
                       {timeAgo(outage.reportedAt)}
                     </span>
                     <span className="block text-xs tabular-nums text-muted-foreground">
-                      {outage.verificationCount} confirmed
+                      {outage.origin === "official"
+                        ? (outage.sourceName ?? "feed")
+                        : `${outage.verificationCount} confirmed`}
                     </span>
                   </span>
                 </button>

@@ -3,14 +3,15 @@
 import { useCallback, useEffect, useState } from "react";
 import { Plus, Settings2 } from "lucide-react";
 import { DEFAULT_VIEW } from "@/lib/constants";
-import { useOutages, useSession } from "@/lib/hooks/use-outages";
+import { useAdvisories, useOutages, useSession } from "@/lib/hooks/use-outages";
 import { activeFilterCount, useFilters } from "@/lib/store/filters";
-import type { BoundingBox, GeocodeResult, Outage } from "@/lib/types";
+import type { Advisory, BoundingBox, GeocodeResult, Outage } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { FilterSheet } from "@/components/filters/filter-sheet";
 import { MapLegend } from "@/components/map/markers";
 import { OutageMap, type MapView } from "@/components/map/outage-map";
 import { NearbyPanel } from "@/components/layout/nearby-panel";
+import { AdvisorySheet } from "@/components/outage/advisory-sheet";
 import { OutageDetailSheet } from "@/components/outage/outage-detail-sheet";
 import { ReportSheet } from "@/components/report/report-sheet";
 import { SearchBar } from "@/components/search/search-bar";
@@ -49,12 +50,15 @@ export function MapShell() {
       new URLSearchParams(window.location.search).get("action") === "report",
   );
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [selectedAdvisory, setSelectedAdvisory] = useState<Advisory | null>(null);
   const [picking, setPicking] = useState(false);
   const [listExpanded, setListExpanded] = useState(false);
   const [theme, setTheme] = useState<"light" | "dark">("light");
 
   const { data: session } = useSession();
   const { data: outages = [], isFetching } = useOutages(bounds);
+  const showAdvisories = useFilters((s) => s.showAdvisories);
+  const { data: advisories = [] } = useAdvisories(bounds, showAdvisories);
 
   // Selected field by field. A selector returning a new object every call has
   // no stable identity, which makes useSyncExternalStore re-render forever.
@@ -118,6 +122,8 @@ export function MapShell() {
     <main className="fixed inset-0 overflow-hidden">
       <OutageMap
         outages={outages}
+        advisories={showAdvisories ? advisories : []}
+        onSelectAdvisory={setSelectedAdvisory}
         selectedId={selectedId}
         onSelect={handleSelect}
         onBoundsChange={handleBoundsChange}
@@ -211,6 +217,13 @@ export function MapShell() {
         pickedLocation={center}
         onRequestPicking={setPicking}
         onReported={setSelectedId}
+      />
+
+      <AdvisorySheet
+        advisory={selectedAdvisory}
+        onOpenChange={(open) => {
+          if (!open) setSelectedAdvisory(null);
+        }}
       />
 
       <SettingsSheet

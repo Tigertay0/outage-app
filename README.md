@@ -33,6 +33,8 @@ To connect a real database and enable accounts and push notifications, see
 | Distance-sorted list of what is in view | `components/layout/nearby-panel.tsx` |
 | Alerts, quiet hours, saved places | `components/layout/settings-sheet.tsx` |
 | Web Push fan-out on new reports | `lib/push.ts`, `public/sw.js` |
+| Public-feed ingestion, on a schedule | `lib/ingest/`, `app/api/ingest/` |
+| Storm-warning layer from the National Weather Service | `components/outage/advisory-sheet.tsx` |
 
 ## How it is put together
 
@@ -54,6 +56,13 @@ attribute comments, so reporting works before anyone signs up — which matters
 for an app whose data comes entirely from its users. Signing in with Supabase
 Auth upgrades the same actions to a durable account.
 
+**Two kinds of data, kept apart.** Reports come from people; a separate
+ingestion layer polls public feeds every fifteen minutes. Anything ingested is
+marked `origin: 'official'` and badged in the UI, because a confirmation count
+means something different for a neighbour's report than for a utility's feed.
+Weather warnings go further and live in their own table — a storm is a reason to
+expect an outage, not evidence of one.
+
 **Filters and viewport are pushed into SQL.** The map queries
 `search_outages` (migration 002) with the viewport bounding box and every active
 filter, so panning fetches only what is on screen rather than filtering a full
@@ -74,8 +83,10 @@ npm run icons      # regenerate the PWA icon set
 - Sign-in and sign-up screens. The Supabase Auth session is read everywhere it
   matters, but there is no UI to create one yet — guests can do everything
   except sync across devices.
-- Official provider API integration (PRD 4.8) and the analytics, heatmap and
-  history views (PRD 4.10–4.12).
+- Live power-outage data. No free feed exists — PowerOutage.us aggregates every
+  US utility and charges for it. `lib/ingest/source.ts` is the interface a paid
+  source would implement; nothing above the data layer would change.
+- The analytics, heatmap and history views (PRD 4.10–4.12).
 - Automated tests.
 - Push subscriptions are held in server memory, so they do not survive a restart
   or span multiple instances. The `push_subscriptions` table is already in the

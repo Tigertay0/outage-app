@@ -11,9 +11,9 @@ import Map, {
 } from "react-map-gl/maplibre";
 import { DEFAULT_VIEW, HOME_BOUNDS, MARKER_ZOOM } from "@/lib/constants";
 import { useNow } from "@/lib/hooks/use-now";
-import type { BoundingBox, Outage } from "@/lib/types";
+import type { Advisory, BoundingBox, Outage } from "@/lib/types";
 import { FALLBACK_STYLE, basemapUrl } from "./basemap";
-import { ClusterMarker, OutageMarker } from "./markers";
+import { AdvisoryMarker, ClusterMarker, OutageMarker } from "./markers";
 import { useClusters, type ClusterProperties, type PointProperties } from "./use-clusters";
 
 /** Reported within this many minutes counts as "fresh" and gets a pulse ring. */
@@ -46,6 +46,8 @@ export interface MapView {
 
 interface OutageMapProps {
   outages: Outage[];
+  advisories: Advisory[];
+  onSelectAdvisory: (advisory: Advisory) => void;
   selectedId: string | null;
   onSelect: (outage: Outage) => void;
   onBoundsChange: (bounds: BoundingBox, zoom: number) => void;
@@ -59,6 +61,8 @@ interface OutageMapProps {
 
 export function OutageMap({
   outages,
+  advisories,
+  onSelectAdvisory,
   selectedId,
   onSelect,
   onBoundsChange,
@@ -226,6 +230,26 @@ export function OutageMap({
         positionOptions={{ enableHighAccuracy: true }}
       />
       <ScaleControl position="bottom-left" maxWidth={90} unit="imperial" />
+
+      {/* Advisories render first so outage markers sit above them: a report of
+          actual lost service outranks a forecast of possible lost service. */}
+      {!picking &&
+        advisories.map((advisory) => (
+          <Marker
+            key={`advisory-${advisory.id}`}
+            longitude={advisory.longitude}
+            latitude={advisory.latitude}
+            onClick={(event) => {
+              event.originalEvent.stopPropagation();
+              onSelectAdvisory(advisory);
+            }}
+          >
+            <AdvisoryMarker
+              severity={advisory.severity}
+              onClick={() => onSelectAdvisory(advisory)}
+            />
+          </Marker>
+        ))}
 
       {!picking &&
         clusters.map((feature) => {

@@ -45,6 +45,9 @@ export interface Outage {
   estimatedRestoration: string | null;
   verificationCount: number;
   isVerified: boolean;
+  origin: OutageOrigin;
+  /** Which feed produced this, when origin is "official". */
+  sourceName: string | null;
 }
 
 export interface OutageComment {
@@ -62,6 +65,31 @@ export interface OutageDetail extends Outage {
   comments: OutageComment[];
   /** Whether the requesting identity has already confirmed this outage. */
   confirmedByMe: boolean;
+}
+
+/** Where an outage came from: a person, or an upstream feed. */
+export type OutageOrigin = "crowdsourced" | "official";
+
+/**
+ * A hazard that causes outages rather than an outage itself — a storm warning,
+ * say. Kept apart from Outage so the map never implies someone has lost service
+ * where nobody has reported losing it.
+ */
+export interface Advisory {
+  id: string;
+  sourceName: string;
+  sourceId: string;
+  /** Upstream event name, e.g. "High Wind Warning". */
+  kind: string;
+  severity: Severity;
+  headline: string | null;
+  description: string | null;
+  areaDescription: string | null;
+  url: string | null;
+  latitude: number;
+  longitude: number;
+  startsAt: string | null;
+  endsAt: string | null;
 }
 
 export interface BoundingBox {

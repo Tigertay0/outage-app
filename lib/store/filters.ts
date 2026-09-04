@@ -20,12 +20,16 @@ interface FilterState {
   providerIds: string[];
   /** Hours of recently-resolved outages to keep on the map. 0 hides them. */
   resolvedHours: number;
+  /** Storm and hazard warnings layer. On by default: it is usually the only
+   *  thing on the map in a quiet area, and it explains outages that follow. */
+  showAdvisories: boolean;
 
   toggleServiceType: (type: ServiceType) => void;
   toggleSeverity: (severity: Severity) => void;
   toggleProvider: (id: string) => void;
   setProviders: (ids: string[]) => void;
   setResolvedHours: (hours: number) => void;
+  setShowAdvisories: (show: boolean) => void;
   selectAll: (allProviderIds: string[]) => void;
   deselectAll: () => void;
   hydrateFromServer: (partial: {
@@ -48,6 +52,7 @@ export const useFilters = create<FilterState>()(
       severities: [...SEVERITIES],
       providerIds: [],
       resolvedHours: 0,
+      showAdvisories: true,
 
       toggleServiceType: (type) =>
         set((s) => ({ serviceTypes: toggle(s.serviceTypes, type) })),
@@ -61,6 +66,8 @@ export const useFilters = create<FilterState>()(
       setProviders: (ids) => set({ providerIds: ids }),
 
       setResolvedHours: (hours) => set({ resolvedHours: hours }),
+
+      setShowAdvisories: (show) => set({ showAdvisories: show }),
 
       selectAll: () =>
         set({
@@ -79,7 +86,9 @@ export const useFilters = create<FilterState>()(
           providerIds: partial.providerIds ?? s.providerIds,
         })),
     }),
-    { name: "outage-filters", version: 1 },
+    // Bumped when showAdvisories was added; a v1 blob rehydrates with the
+    // default rather than an undefined toggle.
+    { name: "outage-filters", version: 2 },
   ),
 );
 
