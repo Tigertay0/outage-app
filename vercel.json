@@ -3,7 +3,6 @@
   "crons": [
     {
       "path": "/api/ingest",
-      "comment": "Daily, because Vercel's Hobby plan rejects anything more frequent at deploy time. This is a floor, not the real refresh rate: /api/advisories triggers a background run whenever the data it is about to serve is stale. On a paid plan, change this to */15 * * * * and the lazy path effectively stops firing.",
       "schedule": "0 11 * * *"
     }
   ]
