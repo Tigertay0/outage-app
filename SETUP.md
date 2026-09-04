@@ -160,8 +160,18 @@ writes with the service-role key. `SUPABASE_SERVICE_ROLE_KEY` must also be set,
 since ingested rows have no `reported_by` and every RLS write policy is
 expressed in terms of `auth.uid()`.
 
-On Vercel, [`vercel.json`](vercel.json) schedules it every fifteen minutes and
-the platform sends the secret automatically. Elsewhere, call it yourself:
+On Vercel, [`vercel.json`](vercel.json) schedules it and the platform sends the
+secret automatically. The schedule is **daily**, because the Hobby plan rejects
+anything more frequent — a deployment with `*/15 * * * *` fails to build. Daily
+is useless on its own for warnings that expire in hours, so `/api/advisories`
+also kicks off a run in the background whenever the data it is about to serve is
+more than twenty minutes old. Real visitors therefore keep the layer fresh, and
+the cron is only a floor.
+
+On a paid plan, change the schedule to `*/15 * * * *`; the lazy path then
+almost never fires.
+
+Elsewhere, call it yourself:
 
 ```bash
 curl -H "Authorization: Bearer $CRON_SECRET" https://your-app/api/ingest
