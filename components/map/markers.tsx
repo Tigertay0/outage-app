@@ -1,6 +1,6 @@
 "use client";
 
-import { CircleHelp, Signal, Wifi, Zap } from "lucide-react";
+import { CircleHelp, Signal, TriangleAlert, Wifi, Zap } from "lucide-react";
 import { SEVERITY_META, dominantSeverity } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import type { ServiceType, Severity } from "@/lib/types";
@@ -130,6 +130,37 @@ export function OutageMarker({
   );
 }
 
+/**
+ * Hazard advisory: a storm warning rather than a reported outage.
+ *
+ * Deliberately a different shape — a rotated square, not a circle — so the two
+ * layers are told apart without relying on colour, and drawn semi-transparent
+ * so it reads as background context behind the outages that matter more.
+ */
+export function AdvisoryMarker({
+  severity,
+  onClick,
+}: {
+  severity: Severity;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex h-8 w-8 items-center justify-center min-h-0"
+      aria-label={`Weather advisory — ${SEVERITY_META[severity].label}`}
+    >
+      <span
+        style={{ backgroundColor: SEVERITY_META[severity].token }}
+        className="flex h-5 w-5 rotate-45 items-center justify-center rounded-[3px] border-2 border-white/90 opacity-80 shadow transition-transform hover:scale-125"
+      >
+        <TriangleAlert className="h-2.5 w-2.5 -rotate-45 text-white" />
+      </span>
+    </button>
+  );
+}
+
 /** The map legend. Kept collapsed on small screens so it never fights the map. */
 export function MapLegend({ className }: { className?: string }) {
   const rows: Array<[Severity, string]> = [
@@ -162,6 +193,13 @@ export function MapLegend({ className }: { className?: string }) {
             className="h-2.5 w-2.5 rounded-full border border-dashed border-muted-foreground"
           />
           <span className="text-muted-foreground">Unverified</span>
+        </li>
+        <li className="flex items-center gap-2">
+          <span
+            aria-hidden
+            className="h-2.5 w-2.5 rotate-45 rounded-[2px] bg-muted-foreground/60"
+          />
+          <span className="text-muted-foreground">Storm warning</span>
         </li>
       </ul>
     </div>

@@ -145,6 +145,71 @@ Two caveats:
 
 ---
 
+## Public-data ingestion
+
+The map is not only crowdsourced: `/api/ingest` polls public feeds and writes
+what they return.
+
+```bash
+CRON_SECRET=$(openssl rand -base64 32)
+```
+
+Put that in `.env.local` and in the host's environment. It is required — the
+route refuses to run without it rather than defaulting to open, because it
+writes with the service-role key. `SUPABASE_SERVICE_ROLE_KEY` must also be set,
+since ingested rows have no `reported_by` and every RLS write policy is
+expressed in terms of `auth.uid()`.
+
+On Vercel, [`vercel.json`](vercel.json) schedules it and the platform sends the
+secret automatically. The schedule is **daily**, because the Hobby plan rejects
+anything more frequent — a deployment with `*/15 * * * *` fails to build. Daily
+is useless on its own for warnings that expire in hours, so `/api/advisories`
+also kicks off a run in the background whenever the data it is about to serve is
+more than twenty minutes old. Real visitors therefore keep the layer fresh, and
+the cron is only a floor.
+
+On a paid plan, change the schedule to `*/15 * * * *`; the lazy path then
+almost never fires.
+
+Elsewhere, call it yourself:
+
+```bash
+curl -H "Authorization: Bearer $CRON_SECRET" https://your-app/api/ingest
+```
+
+### What it currently pulls
+
+**National Weather Service** — free, no key, good US coverage. Filtered to the
+event types that take out power, internet or phones (wind, ice, thunderstorm,
+tornado, hurricane, fire, flood), which is roughly 25 of the ~215 alerts active
+at any moment. Alerts carrying a polygon are placed directly; the rest name NWS
+forecast zones, which are resolved to a centroid and cached.
+
+These land in `advisories`, **not** `outages`. A storm warning is a reason to
+expect an outage, not evidence of one, and filing it as an outage would put
+events on the map nobody has lost service to. The map shows them as a separate,
+toggleable layer.
+
+### What it does not pull
+
+There is no free live feed of US power outages. PowerOutage.us aggregates every
+utility and charges for it; the DOE's EAGLE-I is bulk historical. Individual
+utility outage maps have undocumented JSON endpoints, but scraping them is
+fragile and generally against their terms.
+
+`lib/ingest/source.ts` defines the interface a feed implements, and
+`lib/ingest/run.ts` holds the registry — adding a paid source means writing an
+adapter and listing it, with nothing above the data layer changing. An
+`IngestedOutage` goes into `outages` with `origin = 'official'`, deduplicated
+on `(source_name, source_id)`, and rows the feed stops reporting are resolved
+automatically.
+
+IODA (Georgia Tech) was evaluated and rejected: it is free and genuinely good,
+but it detects country-scale internet blackouts. It had zero US alerts over a
+24-hour sample.
+
+---
+
 ## Basemap
 
 Defaults to [OpenFreeMap](https://openfreemap.org) — no account, no quota. To

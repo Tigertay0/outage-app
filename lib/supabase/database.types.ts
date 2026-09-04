@@ -74,6 +74,9 @@ export interface Database {
           estimated_restoration: string | null
           verification_count: number
           is_verified: boolean
+          origin: 'crowdsourced' | 'official'
+          source_name: string | null
+          source_id: string | null
           metadata: Json
           created_at: string
           updated_at: string
@@ -96,6 +99,9 @@ export interface Database {
           estimated_restoration?: string | null
           verification_count?: number
           is_verified?: boolean
+          origin?: 'crowdsourced' | 'official'
+          source_name?: string | null
+          source_id?: string | null
           metadata?: Json
           created_at?: string
           updated_at?: string
@@ -118,6 +124,9 @@ export interface Database {
           estimated_restoration?: string | null
           verification_count?: number
           is_verified?: boolean
+          origin?: 'crowdsourced' | 'official'
+          source_name?: string | null
+          source_id?: string | null
           metadata?: Json
           created_at?: string
           updated_at?: string
@@ -142,6 +151,58 @@ export interface Database {
           outage_id?: string
           user_id?: string
           confirmed_at?: string
+        }
+        Relationships: []
+      }
+      /** Added in migration 006 — hazards that cause outages, e.g. storms. */
+      advisories: {
+        Row: {
+          id: string
+          source_name: string
+          source_id: string
+          kind: string
+          severity: 'complete' | 'degraded' | 'intermittent'
+          headline: string | null
+          description: string | null
+          area_description: string | null
+          url: string | null
+          location: unknown // PostGIS geography type
+          starts_at: string | null
+          ends_at: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          source_name: string
+          source_id: string
+          kind: string
+          severity: 'complete' | 'degraded' | 'intermittent'
+          headline?: string | null
+          description?: string | null
+          area_description?: string | null
+          url?: string | null
+          location: unknown
+          starts_at?: string | null
+          ends_at?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          source_name?: string
+          source_id?: string
+          kind?: string
+          severity?: 'complete' | 'degraded' | 'intermittent'
+          headline?: string | null
+          description?: string | null
+          area_description?: string | null
+          url?: string | null
+          location?: unknown
+          starts_at?: string | null
+          ends_at?: string | null
+          created_at?: string
+          updated_at?: string
         }
         Relationships: []
       }
@@ -342,7 +403,39 @@ export interface Database {
           estimated_restoration: string | null
           verification_count: number
           is_verified: boolean
+          origin: 'crowdsourced' | 'official'
+          source_name: string | null
         }[]
+      }
+      /** Added in migration 006 — viewport query for the advisory layer. */
+      search_advisories: {
+        Args: {
+          min_lat?: number
+          min_lng?: number
+          max_lat?: number
+          max_lng?: number
+          max_results?: number
+        }
+        Returns: {
+          id: string
+          source_name: string
+          source_id: string
+          kind: string
+          severity: 'complete' | 'degraded' | 'intermittent'
+          headline: string | null
+          description: string | null
+          area_description: string | null
+          url: string | null
+          latitude: number
+          longitude: number
+          starts_at: string | null
+          ends_at: string | null
+        }[]
+      }
+      /** Added in migration 006 — housekeeping after an ingest run. */
+      prune_expired_advisories: {
+        Args: Record<string, never>
+        Returns: number
       }
       /** Added in migration 005 — durable rate limiting shared across instances. */
       consume_rate_limit: {

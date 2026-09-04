@@ -124,11 +124,18 @@ export function OutageDetailSheet({
                     : SEVERITY_META[outage.severity].label}
                 </Badge>
 
-                {outage.isVerified && (
+                {outage.origin === "official" ? (
                   <Badge variant="outline">
                     <BadgeCheck className="h-3 w-3" />
-                    Verified
+                    Official
                   </Badge>
+                ) : (
+                  outage.isVerified && (
+                    <Badge variant="outline">
+                      <BadgeCheck className="h-3 w-3" />
+                      Verified
+                    </Badge>
+                  )
                 )}
 
                 <Badge variant="outline">
@@ -151,7 +158,14 @@ export function OutageDetailSheet({
                 <p className="py-3 text-sm">{outage.description}</p>
               )}
 
-              {!isResolved && (
+              {outage.origin === "official" && (
+                <p className="py-2 text-sm text-muted-foreground">
+                  Reported by {outage.sourceName ?? "an official feed"}, not by a
+                  person. Confirmations do not apply.
+                </p>
+              )}
+
+              {!isResolved && outage.origin === "crowdsourced" && (
                 <div className="flex gap-2 py-2">
                   <Button
                     variant={outage.confirmedByMe ? "secondary" : "default"}
@@ -179,7 +193,7 @@ export function OutageDetailSheet({
                 </div>
               )}
 
-              {!isResolved && remaining > 0 && (
+              {!isResolved && outage.origin === "crowdsourced" && remaining > 0 && (
                 <p className="pb-2 text-xs text-muted-foreground">
                   {remaining} more {pluralize(remaining, "confirmation")} to mark
                   this verified.

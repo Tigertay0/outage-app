@@ -2,6 +2,8 @@ import { VERIFICATION_THRESHOLD } from "@/lib/constants";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import type { Json } from "@/lib/supabase/database.types";
 import type {
+  Advisory,
+  BoundingBox,
   CreateOutageInput,
   Outage,
   OutageComment,
@@ -47,6 +49,8 @@ interface SearchRow {
   estimated_restoration: string | null;
   verification_count: number;
   is_verified: boolean;
+  origin: "crowdsourced" | "official";
+  source_name: string | null;
 }
 
 function toOutage(row: SearchRow): Outage {
@@ -71,6 +75,8 @@ function toOutage(row: SearchRow): Outage {
     estimatedRestoration: row.estimated_restoration,
     verificationCount: row.verification_count,
     isVerified: row.is_verified,
+    origin: row.origin,
+    sourceName: row.source_name,
   };
 }
 
@@ -136,6 +142,36 @@ export class SupabaseRepository implements Repository {
         officialStatusUrl: r.official_status_url,
       };
     });
+  }
+
+  async listAdvisories(bounds?: BoundingBox): Promise<Advisory[]> {
+    const supabase = await this.client();
+
+    const { data, error } = await supabase.rpc("search_advisories", {
+      min_lat: bounds?.minLat ?? -90,
+      min_lng: bounds?.minLng ?? -180,
+      max_lat: bounds?.maxLat ?? 90,
+      max_lng: bounds?.maxLng ?? 180,
+      max_results: 300,
+    });
+
+    if (error) throw new Error(`listAdvisories: ${error.message}`);
+
+    return (data ?? []).map((row) => ({
+      id: row.id,
+      sourceName: row.source_name,
+      sourceId: row.source_id,
+      kind: row.kind,
+      severity: row.severity,
+      headline: row.headline,
+      description: row.description,
+      areaDescription: row.area_description,
+      url: row.url,
+      latitude: row.latitude,
+      longitude: row.longitude,
+      startsAt: row.starts_at,
+      endsAt: row.ends_at,
+    }));
   }
 
   async listOutages(query: OutageQuery): Promise<Outage[]> {
