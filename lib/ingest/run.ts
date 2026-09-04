@@ -211,6 +211,68 @@ export async function runIngest(): Promise<IngestReport> {
   };
 }
 
+/**
+ * How stale the advisory layer may get before a read triggers a refresh.
+ *
+ * Vercel's Hobby plan caps cron at one run per day, which is useless for
+ * warnings that expire in hours. So the schedule is a floor and this is the
+ * real refresh rate: a request that is about to serve stale data kicks off a
+ * run in the background and serves what it has. On a paid plan the cron runs
+ * often enough that this rarely fires.
+ */
+const STALE_AFTER_MS = 20 * 60 * 1000;
+
+/** Guards against a burst of concurrent readers each starting their own run. */
+const globalIngest = globalThis as unknown as {
+  __ingestInFlight?: Promise<IngestReport> | null;
+  __ingestLastAttempt?: number;
+};
+
+/**
+ * Run the feeds if what we would serve is stale.
+ *
+ * Safe to call on a read path: it returns immediately when the data is fresh,
+ * when a run is already going, or when the service-role key is absent. The
+ * caller should not await it — see the `after()` call in /api/advisories.
+ */
+export async function refreshIfStale(): Promise<void> {
+  if (!isSupabaseConfigured()) return;
+  if (!process.env.SUPABASE_SERVICE_ROLE_KEY) return;
+
+  // A failing run must not be retried on every single request.
+  const lastAttempt = globalIngest.__ingestLastAttempt ?? 0;
+  if (Date.now() - lastAttempt < STALE_AFTER_MS) return;
+
+  if (globalIngest.__ingestInFlight) return;
+
+  try {
+    const client = createServiceRoleClient();
+    const { data } = await client
+      .from("advisories")
+      .select("updated_at")
+      .order("updated_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    const newest = (data as { updated_at: string } | null)?.updated_at;
+    const fresh =
+      newest !== undefined &&
+      newest !== null &&
+      Date.now() - Date.parse(newest) < STALE_AFTER_MS;
+
+    if (fresh) return;
+
+    globalIngest.__ingestLastAttempt = Date.now();
+    globalIngest.__ingestInFlight = runIngest();
+
+    await globalIngest.__ingestInFlight;
+  } catch (error) {
+    console.error("[ingest] background refresh failed:", error);
+  } finally {
+    globalIngest.__ingestInFlight = null;
+  }
+}
+
 /** Names of the registered sources, for the status endpoint. */
 export function registeredSources() {
   return SOURCES.map((s) => ({
