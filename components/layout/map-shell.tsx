@@ -1,12 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Plus, Settings2 } from "lucide-react";
 import { DEFAULT_VIEW } from "@/lib/constants";
 import { useAdvisories, useOutages, useSession } from "@/lib/hooks/use-outages";
 import { activeFilterCount, useFilters } from "@/lib/store/filters";
 import type { Advisory, BoundingBox, GeocodeResult, Outage } from "@/lib/types";
 import { Button } from "@/components/ui/button";
+import { useToast } from "@/components/ui/use-toast";
 import { FilterSheet } from "@/components/filters/filter-sheet";
 import { MapLegend } from "@/components/map/markers";
 import { OutageMap, type MapView } from "@/components/map/outage-map";
@@ -15,6 +17,7 @@ import { AdvisorySheet } from "@/components/outage/advisory-sheet";
 import { OutageDetailSheet } from "@/components/outage/outage-detail-sheet";
 import { ReportSheet } from "@/components/report/report-sheet";
 import { SearchBar } from "@/components/search/search-bar";
+import { AccountButton, AuthSheet } from "@/components/auth/auth-sheet";
 import { DemoBanner } from "./demo-banner";
 import { SettingsSheet } from "./settings-sheet";
 
@@ -26,6 +29,8 @@ import { SettingsSheet } from "./settings-sheet";
  * hooks; each sheet manages its own form state.
  */
 export function MapShell() {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [bounds, setBounds] = useState<BoundingBox | null>(null);
   const [center, setCenter] = useState({
     latitude: DEFAULT_VIEW.latitude,
@@ -50,6 +55,7 @@ export function MapShell() {
       new URLSearchParams(window.location.search).get("action") === "report",
   );
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [authOpen, setAuthOpen] = useState(false);
   const [selectedAdvisory, setSelectedAdvisory] = useState<Advisory | null>(null);
   const [picking, setPicking] = useState(false);
   const [listExpanded, setListExpanded] = useState(false);
@@ -99,6 +105,45 @@ export function MapShell() {
     query.addEventListener("change", apply);
     return () => query.removeEventListener("change", apply);
   }, []);
+
+  /**
+   * Report the outcome of an email confirmation or password reset.
+   *
+   * `/auth/callback` always redirects back here with `?auth=…` rather than
+   * rendering a page of its own, so the person lands on the map either way.
+   * The params are stripped afterwards so a refresh does not repeat the toast.
+   */
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const result = params.get("auth");
+    if (!result) return;
+
+    if (result === "confirmed") {
+      toast({
+        title: "Email confirmed",
+        description: "Your account is ready. You are signed in on this device.",
+      });
+      queryClient.invalidateQueries();
+    } else {
+      toast({
+        variant: "destructive",
+        title: "That link did not work",
+        description:
+          params.get("reason") === "missing-code"
+            ? "The link was incomplete. Try requesting a new one."
+            : (params.get("reason") ?? "Please request a new link."),
+      });
+    }
+
+    params.delete("auth");
+    params.delete("reason");
+    const query = params.toString();
+    window.history.replaceState(
+      {},
+      "",
+      window.location.pathname + (query ? `?${query}` : ""),
+    );
+  }, [toast, queryClient]);
 
   const handleBoundsChange = useCallback(
     (next: BoundingBox, nextZoom: number) => {
@@ -194,6 +239,12 @@ export function MapShell() {
           >
             <Settings2 className="h-4 w-4" />
           </Button>
+
+          {/* Only offered where accounts exist at all: the local backend has no
+              auth, and a button that cannot work is worse than no button. */}
+          {session?.capabilities.accounts && (
+            <AccountButton session={session} onClick={() => setAuthOpen(true)} />
+          )}
         </div>
       )}
 
@@ -242,6 +293,8 @@ export function MapShell() {
           if (!open) setSelectedAdvisory(null);
         }}
       />
+
+      <AuthSheet open={authOpen} onOpenChange={setAuthOpen} session={session} />
 
       <SettingsSheet
         open={settingsOpen}
