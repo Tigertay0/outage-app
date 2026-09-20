@@ -53,7 +53,21 @@ export function MapShell() {
   const [selectedAdvisory, setSelectedAdvisory] = useState<Advisory | null>(null);
   const [picking, setPicking] = useState(false);
   const [listExpanded, setListExpanded] = useState(false);
-  const [theme, setTheme] = useState<"light" | "dark">("light");
+  /**
+   * Resolved before the map mounts, not in an effect.
+   *
+   * Deciding the theme afterwards meant the map was created with the light
+   * style and immediately handed a dark one. A style swap that lands before
+   * MapLibre's `load` event supersedes it, so `onLoad` never fired, the
+   * viewport was never reported, and the app fetched nothing until the user
+   * panned. Picking the right style up front removes the swap entirely.
+   */
+  const [theme, setTheme] = useState<"light" | "dark">(() =>
+    typeof window !== "undefined" &&
+    window.matchMedia("(prefers-color-scheme: dark)").matches
+      ? "dark"
+      : "light",
+  );
 
   const { data: session } = useSession();
   const { data: outages = [], isFetching } = useOutages(bounds);
