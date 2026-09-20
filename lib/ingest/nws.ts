@@ -73,10 +73,18 @@ const OUTAGE_RELEVANT = new Map<string, Severity>([
   ["Winter Storm Warning", "degraded"],
   ["Winter Storm Watch", "intermittent"],
 
-  // Fire and flood take out infrastructure directly.
+  // Fire and flood take out infrastructure directly. Substations and street
+  // cabinets sit at grade, so sustained flooding matters as much as a flash
+  // event — and on a calm day these are often the only US alerts active.
   ["Extreme Fire Danger", "degraded"],
   ["Red Flag Warning", "intermittent"],
-  ["Flash Flood Warning", "degraded"],
+  ["Flash Flood Warning", "complete"],
+  ["Flood Warning", "degraded"],
+  ["Flood Watch", "intermittent"],
+  ["Flood Advisory", "intermittent"],
+  ["Coastal Flood Warning", "degraded"],
+  ["Coastal Flood Advisory", "intermittent"],
+  ["Storm Surge Warning", "complete"],
 
   // Utilities themselves announce these through NWS in some regions.
   ["Extreme Heat Warning", "intermittent"],

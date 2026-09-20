@@ -199,11 +199,14 @@ export function MapShell() {
 
             <NearbyPanel
               outages={outages}
+              advisories={showAdvisories ? advisories : []}
               loading={isFetching}
               center={center}
               expanded={listExpanded}
               onExpandedChange={setListExpanded}
               onSelect={handleSelect}
+              onSelectAdvisory={setSelectedAdvisory}
+              onReport={() => setReportOpen(true)}
             />
           </div>
         </div>
