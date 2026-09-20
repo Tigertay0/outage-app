@@ -34,6 +34,7 @@ To connect a real database and enable accounts and push notifications, see
 | Alerts, quiet hours, saved places | `components/layout/settings-sheet.tsx` |
 | Web Push fan-out on new reports | `lib/push.ts`, `public/sw.js` |
 | Public-feed ingestion, on a schedule | `lib/ingest/`, `app/api/ingest/` |
+| Accounts, upgrading a guest in place | `components/auth/`, `lib/hooks/use-auth.ts` |
 | Storm-warning layer from the National Weather Service | `components/outage/advisory-sheet.tsx` |
 
 ## How it is put together
@@ -55,6 +56,11 @@ httpOnly cookie. That is enough to enforce one confirmation per person and to
 attribute comments, so reporting works before anyone signs up — which matters
 for an app whose data comes entirely from its users. Signing in with Supabase
 Auth upgrades the same actions to a durable account.
+
+**Guests are first class.** A visitor with no account is a real Supabase
+anonymous user, so their reports satisfy the same foreign key and the same RLS
+policies as anyone else's. Creating an account upgrades that user in place
+rather than making a second one, so nothing they contributed is orphaned.
 
 **Two kinds of data, kept apart.** Reports come from people; a separate
 ingestion layer polls public feeds every fifteen minutes. Anything ingested is
@@ -80,9 +86,10 @@ npm run icons      # regenerate the PWA icon set
 
 ## Not built yet
 
-- Sign-in and sign-up screens. The Supabase Auth session is read everywhere it
-  matters, but there is no UI to create one yet — guests can do everything
-  except sync across devices.
+- Social sign-in. Accounts are email and password only. Supabase supports OAuth
+  providers; none are wired up.
+- Custom SMTP. Signups confirm by email, and the built-in Supabase sender is
+  capped at a couple of messages an hour — see SETUP.md before real users arrive.
 - Live power-outage data. No free feed exists — PowerOutage.us aggregates every
   US utility and charges for it. `lib/ingest/source.ts` is the interface a paid
   source would implement; nothing above the data layer would change.

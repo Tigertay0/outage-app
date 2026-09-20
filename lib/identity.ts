@@ -122,7 +122,9 @@ export async function getIdentity(
         id: user.id,
         isAuthenticated: true,
         isAnonymous: user.is_anonymous ?? false,
-        email: user.email ?? null,
+        // Supabase uses "" for an address that is still unconfirmed; the API
+        // should say "no email", not an empty one.
+        email: user.email?.trim() ? user.email : null,
         canWrite: true,
         writeBlockedReason: null,
       };
