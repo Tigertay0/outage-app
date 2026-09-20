@@ -226,18 +226,46 @@ const STALE_AFTER_MS = 20 * 60 * 1000;
 const globalIngest = globalThis as unknown as {
   __ingestInFlight?: Promise<IngestReport> | null;
   __ingestLastAttempt?: number;
+  __ingestWarnedUnwritable?: boolean;
 };
+
+/**
+ * Whether ingestion can write at all.
+ *
+ * Both writers need the service-role key: ingested rows have no `reported_by`,
+ * and every RLS write policy is expressed in terms of `auth.uid()`. An empty
+ * string counts as missing — a blank value in an env file is the likeliest way
+ * to get here, and it is falsy, so it would otherwise disable the whole feature
+ * while looking configured.
+ */
+export function ingestCanWrite(): boolean {
+  return (
+    isSupabaseConfigured() &&
+    (process.env.SUPABASE_SERVICE_ROLE_KEY ?? "").trim().length > 0
+  );
+}
 
 /**
  * Run the feeds if what we would serve is stale.
  *
  * Safe to call on a read path: it returns immediately when the data is fresh,
- * when a run is already going, or when the service-role key is absent. The
- * caller should not await it — see the `after()` call in /api/advisories.
+ * when a run is already going, or when it cannot write. The caller should not
+ * await it — see the `after()` call in /api/advisories.
  */
 export async function refreshIfStale(): Promise<void> {
-  if (!isSupabaseConfigured()) return;
-  if (!process.env.SUPABASE_SERVICE_ROLE_KEY) return;
+  if (!ingestCanWrite()) {
+    // Say so once per process. Returning silently here cost real debugging
+    // time: a blank SUPABASE_SERVICE_ROLE_KEY left the advisory layer
+    // permanently empty with nothing in the log to explain it.
+    if (!globalIngest.__ingestWarnedUnwritable) {
+      globalIngest.__ingestWarnedUnwritable = true;
+      console.warn(
+        "[ingest] skipped: SUPABASE_SERVICE_ROLE_KEY is missing or empty, so " +
+          "public feeds cannot be written. The advisory layer will stay empty.",
+      );
+    }
+    return;
+  }
 
   // A failing run must not be retried on every single request.
   const lastAttempt = globalIngest.__ingestLastAttempt ?? 0;
