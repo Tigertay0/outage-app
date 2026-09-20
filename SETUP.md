@@ -87,7 +87,35 @@ per-identity one — a caller who can mint identities at will is still bounded b
 where they are calling from. Client addresses are hashed before they are stored;
 set `RATE_LIMIT_SALT` to something private so those hashes are not guessable.
 
-### 5. Restart and check
+### 5. Configure SMTP before anyone else signs up
+
+**Authentication → Emails → SMTP Settings.**
+
+Accounts are created by confirming an email address, so every signup depends on
+Supabase being able to send one. The built-in sender exists for development and
+is capped at a couple of messages per hour across the whole project — past that,
+signups fail with:
+
+```
+email rate limit exceeded
+```
+
+The app surfaces that message rather than swallowing it, but there is nothing it
+can do about the cause. Point the project at your own SMTP provider (Resend,
+Postmark, SES, anything) before real users arrive.
+
+**Also set the redirect allow list** under **Authentication → URL Configuration**
+so confirmation links come back to the app: add your deployed origin, and
+`http://localhost:3000` for development. Links land on
+[`/auth/callback`](app/auth/callback/route.ts), which exchanges the code for a
+session and redirects to the map either way — a bad or expired link produces a
+message, not an error page.
+
+If you would rather skip email entirely while testing, turn on
+**Confirm email → off** in the same section. Accounts then work immediately, and
+anyone can claim any address, so do not leave it that way.
+
+### 6. Restart and check
 
 ```bash
 npm run dev
