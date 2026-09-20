@@ -26,7 +26,7 @@ const FRESH_MINUTES = 15;
  * Proportional rather than fixed: fixed pixel padding is most of the map on a
  * short viewport, which pushes a fitBounds out to hemisphere zoom.
  */
-function chromePadding(map: MapRef | null) {
+function chromePadding(map: Pick<MapRef, "getContainer"> | null | undefined) {
   const height = map?.getContainer().clientHeight ?? 800;
   const width = map?.getContainer().clientWidth ?? 400;
 
@@ -124,33 +124,46 @@ export function OutageMap({
   );
 
   /** Read the current viewport off the map and push it upward. */
-  const syncViewport = useCallback(() => {
-    const map = mapRef.current;
-    if (!map) return;
+  /**
+   * Publish the map's viewport upward.
+   *
+   * Takes the map explicitly rather than reading `mapRef.current`. React assigns
+   * refs after commit, so a `load` event arriving inside that window would find
+   * the ref unset and this would return silently — and since nothing else calls
+   * it until the user pans, the app would then fetch nothing at all. Every
+   * MapLibre event carries the map as `target`, so there is no reason to depend
+   * on the ref's timing. The parameter is optional for callers that have neither.
+   */
+  const syncViewport = useCallback(
+    (mapInstance?: Pick<MapRef, "getBounds" | "getZoom">) => {
+      const map = mapInstance ?? mapRef.current;
+      if (!map) return;
 
-    const bounds = map.getBounds();
-    const zoom = map.getZoom();
+      const bounds = map.getBounds();
+      const zoom = map.getZoom();
 
-    setViewport({
-      bounds: [
-        bounds.getWest(),
-        bounds.getSouth(),
-        bounds.getEast(),
-        bounds.getNorth(),
-      ],
-      zoom,
-    });
+      setViewport({
+        bounds: [
+          bounds.getWest(),
+          bounds.getSouth(),
+          bounds.getEast(),
+          bounds.getNorth(),
+        ],
+        zoom,
+      });
 
-    onBoundsChange(
-      {
-        minLng: bounds.getWest(),
-        minLat: bounds.getSouth(),
-        maxLng: bounds.getEast(),
-        maxLat: bounds.getNorth(),
-      },
-      zoom,
-    );
-  }, [onBoundsChange]);
+      onBoundsChange(
+        {
+          minLng: bounds.getWest(),
+          minLat: bounds.getSouth(),
+          maxLng: bounds.getEast(),
+          maxLat: bounds.getNorth(),
+        },
+        zoom,
+      );
+    },
+    [onBoundsChange],
+  );
 
   // Clustering keys off the rounded zoom, so recomputing on every animation
   // frame is wasted work; moveend is enough for the marker layer. Report mode
@@ -199,20 +212,25 @@ export function OutageMap({
       dragRotate={false}
       touchZoomRotate
       pitchWithRotate={false}
-      onLoad={() => {
+      onLoad={(event) => {
+        // Use the map the event carries rather than the ref: the ref may not be
+        // assigned yet when `load` fires, and every read here would no-op.
+        const map = event.target;
+
         // Fit the country to whatever viewport this actually is, then report
         // the resulting bounds. Padding keeps markers clear of the search bar
         // above and the list panel below.
         if (!flyTo) {
-          mapRef.current?.fitBounds(HOME_BOUNDS, {
-            padding: chromePadding(mapRef.current),
+          map.fitBounds(HOME_BOUNDS, {
+            padding: chromePadding(map),
             duration: 0,
           });
         }
-        syncViewport();
+
+        syncViewport(map);
       }}
       onMove={handleMove}
-      onMoveEnd={syncViewport}
+      onMoveEnd={(event) => syncViewport(event.target)}
       onError={(event) => {
         // A tile-host failure should degrade to the blank style, not a blank page.
         if (String(event.error?.message ?? "").includes("style")) {
