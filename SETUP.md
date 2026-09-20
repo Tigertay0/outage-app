@@ -177,12 +177,25 @@ Elsewhere, call it yourself:
 curl -H "Authorization: Bearer $CRON_SECRET" https://your-app/api/ingest
 ```
 
+To check a deployment without holding the secret:
+
+```bash
+curl -I https://your-app/api/ingest
+```
+
+`x-ingest-writable: false` means `SUPABASE_SERVICE_ROLE_KEY` is missing or
+blank. A blank value is the likely case and is falsy, so the feature looks
+configured while writing nothing.
+
 ### What it currently pulls
 
 **National Weather Service** — free, no key, good US coverage. Filtered to the
-event types that take out power, internet or phones (wind, ice, thunderstorm,
-tornado, hurricane, fire, flood), which is roughly 25 of the ~215 alerts active
-at any moment. Alerts carrying a polygon are placed directly; the rest name NWS
+event types that take out power, internet or phones: wind, ice, thunderstorm,
+tornado, hurricane, fire, and flooding. Flooding is included in full rather than
+flash events alone, because substations and street cabinets sit at grade — and
+on a quiet weather day flood warnings are often the only relevant US alerts
+active at all. That keeps roughly 25–35 of the 215–245 alerts live at any
+moment. Alerts carrying a polygon are placed directly; the rest name NWS
 forecast zones, which are resolved to a centroid and cached.
 
 These land in `advisories`, **not** `outages`. A storm warning is a reason to

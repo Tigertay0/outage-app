@@ -2,7 +2,7 @@ import { timingSafeEqual } from "node:crypto";
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { ok, serverError } from "@/lib/api";
-import { registeredSources, runIngest } from "@/lib/ingest/run";
+import { ingestCanWrite, registeredSources, runIngest } from "@/lib/ingest/run";
 
 export const dynamic = "force-dynamic";
 // NWS returns a few hundred alerts; the upsert is one round trip, but leave
@@ -79,6 +79,9 @@ export async function HEAD() {
         .map((s) => `${s.name}:${s.configured ? "ready" : "unconfigured"}`)
         .join(","),
       "x-ingest-enabled": process.env.CRON_SECRET ? "true" : "false",
+      // Distinct from "enabled": the route can be callable while the key it
+      // needs to write is missing, which is silent everywhere else.
+      "x-ingest-writable": ingestCanWrite() ? "true" : "false",
     },
   });
 }
