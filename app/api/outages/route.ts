@@ -1,3 +1,4 @@
+import { after } from "next/server";
 import type { NextRequest } from "next/server";
 import { badRequest, ok, readJson, serverError, tooMany } from "@/lib/api";
 import { getRepository } from "@/lib/data";
@@ -141,10 +142,17 @@ export async function POST(request: NextRequest) {
       identity.id,
     );
 
-    // Alerting is best effort and must never fail the report itself.
-    void notifyNewOutage(outage).catch((error) =>
-      console.error("[push] notifyNewOutage", error),
-    );
+    // After the response rather than a floating promise: Vercel freezes the
+    // function once the response is sent, and a `void` promise started before
+    // that is abandoned partway through the recipient list. Best effort either
+    // way — alerting must never fail the report itself.
+    after(async () => {
+      try {
+        await notifyNewOutage(outage);
+      } catch (error) {
+        console.error("[push] notifyNewOutage", error);
+      }
+    });
 
     return ok({ outage }, { status: 201 });
   } catch (error) {

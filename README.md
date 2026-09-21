@@ -51,19 +51,13 @@ not a billing relationship or a signup wall. Point
 `NEXT_PUBLIC_MAP_STYLE_URL` at any MapLibre-compatible style — including a
 Mapbox one — to change it.
 
-**Guests are first-class.** An unrecognised visitor gets a random id in an
-httpOnly cookie. That is enough to enforce one confirmation per person and to
-attribute comments, so reporting works before anyone signs up — which matters
-for an app whose data comes entirely from its users. Signing in with Supabase
-Auth upgrades the same actions to a durable account.
-
 **Guests are first class.** A visitor with no account is a real Supabase
 anonymous user, so their reports satisfy the same foreign key and the same RLS
 policies as anyone else's. Creating an account upgrades that user in place
 rather than making a second one, so nothing they contributed is orphaned.
 
 **Two kinds of data, kept apart.** Reports come from people; a separate
-ingestion layer polls public feeds every fifteen minutes. Anything ingested is
+ingestion layer polls public feeds on a schedule and tops up on demand. Anything ingested is
 marked `origin: 'official'` and badged in the UI, because a confirmation count
 means something different for a neighbour's report than for a utility's feed.
 Weather warnings go further and live in their own table — a storm is a reason to
@@ -95,6 +89,3 @@ npm run icons      # regenerate the PWA icon set
   source would implement; nothing above the data layer would change.
 - The analytics, heatmap and history views (PRD 4.10–4.12).
 - Automated tests.
-- Push subscriptions are held in server memory, so they do not survive a restart
-  or span multiple instances. The `push_subscriptions` table is already in the
-  schema for this.
