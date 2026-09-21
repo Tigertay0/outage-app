@@ -297,6 +297,10 @@ export interface Database {
           user_id: string
           endpoint: string
           keys: Json
+          settings: Json
+          center: unknown // PostGIS geography type
+          timezone: string | null
+          updated_at: string | null
           created_at: string
         }
         Insert: {
@@ -304,6 +308,10 @@ export interface Database {
           user_id: string
           endpoint: string
           keys: Json
+          settings?: Json
+          center?: unknown
+          timezone?: string | null
+          updated_at?: string | null
           created_at?: string
         }
         Update: {
@@ -311,6 +319,10 @@ export interface Database {
           user_id?: string
           endpoint?: string
           keys?: Json
+          settings?: Json
+          center?: unknown
+          timezone?: string | null
+          updated_at?: string | null
           created_at?: string
         }
         Relationships: []
@@ -436,6 +448,21 @@ export interface Database {
       prune_expired_advisories: {
         Args: Record<string, never>
         Returns: number
+      }
+      /** Added in migration 007 — service role only; returns subscriber keys. */
+      push_targets: {
+        Args: {
+          outage_lat: number
+          outage_lng: number
+          outage_severity: string
+          exclude_user?: string
+        }
+        Returns: {
+          endpoint: string
+          keys: Json
+          settings: Json
+          timezone: string | null
+        }[]
       }
       /** Added in migration 005 — durable rate limiting shared across instances. */
       consume_rate_limit: {

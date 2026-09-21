@@ -59,8 +59,12 @@ without it.
    — `saved_providers` holds slugs, not UUIDs.
 5. [`prisma/migrations/005_rate_limits.sql`](prisma/migrations/005_rate_limits.sql)
    — rate limiting that holds across serverless instances.
+6. [`prisma/migrations/006_official_sources.sql`](prisma/migrations/006_official_sources.sql)
+   — outage provenance and the weather-advisory layer.
+7. [`prisma/migrations/007_push_subscriptions.sql`](prisma/migrations/007_push_subscriptions.sql)
+   — push subscriptions stored and matched in Postgres.
 
-All five are idempotent, so re-running them is safe.
+All seven are idempotent, so re-running them is safe.
 
 ### 4. Enable anonymous sign-ins
 
@@ -152,24 +156,36 @@ checked. The generator emits both; a hand-written file must not omit them.
 npx web-push generate-vapid-keys
 ```
 
-Put the pair in `.env.local`:
+Put the pair in `.env.local` and in the host's environment:
 
 ```bash
 VAPID_PUBLIC_KEY=BN...
 VAPID_PRIVATE_KEY=...
-VAPID_SUBJECT=mailto:you@example.com
+VAPID_SUBJECT=https://github.com/you/your-repo
 ```
 
+`VAPID_SUBJECT` is sent to the browser vendors' push services as a way to
+contact the operator. It may be a `mailto:` or an `https:` URL; use one you
+control. The private key is a secret.
+
 Without these, the Alerts section of Settings explains that push is unavailable
-rather than showing a switch that cannot work.
+rather than showing a switch that cannot work. Against Supabase, push also needs
+`SUPABASE_SERVICE_ROLE_KEY`: subscriptions are stored and matched with it, since
+the fan-out has to read every subscriber and RLS rightly forbids that to a user.
 
-Two caveats:
+How it works (migration 007):
 
-- The service worker only registers in production builds, so test with
-  `npm run build && npm start`.
-- Subscriptions live in server memory (`lib/push.ts`), so they are lost on
-  restart and are not shared between instances. The `push_subscriptions` table
-  already exists for moving them into Postgres.
+- Subscriptions are rows in `push_subscriptions`, one per browser endpoint, with
+  the alert settings, a centre point and the browser's IANA time zone.
+- `push_targets()` does the matching in SQL — within radius, at or above the
+  severity threshold, excluding whoever filed the report. Execute is revoked
+  from everyone but the service role, because it returns subscriber keys.
+- Quiet hours are checked in the subscriber's own time zone.
+- Fan-out runs in `after()` so serverless does not freeze it mid-list.
+- Endpoints the push service reports as gone (404/410) are deleted.
+
+The service worker only registers in production builds, so test with
+`npm run build && npm start`.
 
 ---
 

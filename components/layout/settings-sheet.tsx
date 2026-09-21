@@ -148,6 +148,19 @@ function SettingsForm({
   async function persist() {
     try {
       await savePreferences.mutateAsync(draft);
+
+      // The subscription carries its own copy of these settings, and that copy
+      // is what the server matches outages against. Without this, a changed
+      // radius or quiet-hours window saved fine and did nothing.
+      if (push.subscribed && draft.notifications.enabled) {
+        await push.resync(
+          draft.notifications,
+          currentView
+            ? { latitude: currentView.latitude, longitude: currentView.longitude }
+            : null,
+        );
+      }
+
       toast({ title: "Settings saved" });
       onOpenChange(false);
     } catch (error) {

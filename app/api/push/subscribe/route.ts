@@ -1,10 +1,28 @@
+import { z } from "zod";
 import { badRequest, ok, readJson, serverError } from "@/lib/api";
 import { getWritableIdentity } from "@/lib/identity";
 import { pushConfigured, removeSubscription, saveSubscription } from "@/lib/push";
 import { fieldErrors, preferencesSchema, pushSubscriptionSchema } from "@/lib/validation";
-import { z } from "zod";
 
 export const dynamic = "force-dynamic";
+
+/**
+ * Accept only zone names the runtime can actually resolve, so a bad value is
+ * rejected here rather than silently falling back to UTC at send time.
+ */
+const timezoneSchema = z
+  .string()
+  .max(64)
+  .refine((zone) => {
+    try {
+      new Intl.DateTimeFormat("en-US", { timeZone: zone });
+      return true;
+    } catch {
+      return false;
+    }
+  }, "Unknown time zone")
+  .nullable()
+  .default(null);
 
 const bodySchema = z.object({
   subscription: pushSubscriptionSchema,
@@ -15,9 +33,16 @@ const bodySchema = z.object({
       longitude: z.number().min(-180).max(180),
     })
     .nullable(),
+  timezone: timezoneSchema,
 });
 
-/** POST /api/push/subscribe — register or update this browser's subscription. */
+/**
+ * POST /api/push/subscribe — register or update this browser's subscription.
+ *
+ * Also the update path: the client re-posts the same subscription with new
+ * settings whenever alert preferences are saved, and the row is upserted on
+ * its endpoint.
+ */
 export async function POST(request: Request) {
   try {
     if (!pushConfigured()) {
@@ -30,12 +55,13 @@ export async function POST(request: Request) {
       return badRequest("Invalid subscription", fieldErrors(parsed.error));
     }
 
-    saveSubscription({
+    await saveSubscription({
       identity: identity.id,
       endpoint: parsed.data.subscription.endpoint,
       keys: parsed.data.subscription.keys,
       settings: parsed.data.settings,
       center: parsed.data.center,
+      timezone: parsed.data.timezone,
     });
 
     return ok({ subscribed: true });
@@ -47,10 +73,12 @@ export async function POST(request: Request) {
 /** DELETE /api/push/subscribe — unsubscribe this browser. */
 export async function DELETE(request: Request) {
   try {
-    const body = (await readJson(request)) as { endpoint?: string };
-    if (!body.endpoint) return badRequest("endpoint is required");
+    const parsed = z
+      .object({ endpoint: z.string().url() })
+      .safeParse(await readJson(request));
+    if (!parsed.success) return badRequest("endpoint is required");
 
-    removeSubscription(body.endpoint);
+    await removeSubscription(parsed.data.endpoint);
     return ok({ subscribed: false });
   } catch (error) {
     return serverError(error, "DELETE /api/push/subscribe");

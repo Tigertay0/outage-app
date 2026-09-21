@@ -29,6 +29,37 @@ function urlBase64ToUint8Array(base64: string): Uint8Array<ArrayBuffer> {
   return output;
 }
 
+/** The browser's IANA zone. Quiet hours are wall-clock times in this zone. */
+function browserTimezone(): string | null {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone ?? null;
+  } catch {
+    return null;
+  }
+}
+
+async function postSubscription(
+  subscription: PushSubscription,
+  settings: NotificationSettings,
+  center: { latitude: number; longitude: number } | null,
+): Promise<void> {
+  const response = await fetch("/api/push/subscribe", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      subscription: subscription.toJSON(),
+      settings,
+      center,
+      timezone: browserTimezone(),
+    }),
+  });
+
+  if (!response.ok) {
+    const body = (await response.json().catch(() => ({}))) as { error?: string };
+    throw new Error(body.error ?? "Server rejected the subscription");
+  }
+}
+
 export function usePush() {
   const [publicKey, setPublicKey] = useState<string | null>(null);
   const [subscribed, setSubscribed] = useState(false);
@@ -121,6 +152,31 @@ export function usePush() {
     [supported, publicKey],
   );
 
+  /**
+   * Push new alert settings to an existing subscription.
+   *
+   * Settings were captured once, when alerts were switched on, so changing the
+   * radius, threshold or quiet hours afterwards and pressing Save updated the
+   * preferences but not what the server used to decide who to notify. This
+   * re-posts the same browser subscription with the current settings; the
+   * server upserts on its endpoint. A no-op when not subscribed.
+   */
+  const resync = useCallback(
+    async (
+      settings: NotificationSettings,
+      center: { latitude: number; longitude: number } | null,
+    ) => {
+      if (!supported || !publicKey) return;
+
+      const registration = await navigator.serviceWorker.getRegistration();
+      const subscription = await registration?.pushManager.getSubscription();
+      if (!subscription) return;
+
+      await postSubscription(subscription, settings, center);
+    },
+    [supported, publicKey],
+  );
+
   const unsubscribe = useCallback(async () => {
     if (!supported) return;
 
@@ -151,6 +207,7 @@ export function usePush() {
     busy,
     error,
     subscribe,
+    resync,
     unsubscribe,
   };
 }
