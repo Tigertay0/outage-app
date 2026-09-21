@@ -1,10 +1,46 @@
-import { badRequest, ok, readJson, serverError } from "@/lib/api";
+import { z } from "zod";
+import { badRequest, ok, readJson, serverError, tooMany } from "@/lib/api";
+import { addressBucket } from "@/lib/client-address";
+import { LIMITS, consumeRateLimit } from "@/lib/rate-limit";
 import { getWritableIdentity } from "@/lib/identity";
 import { pushConfigured, removeSubscription, saveSubscription } from "@/lib/push";
 import { fieldErrors, preferencesSchema, pushSubscriptionSchema } from "@/lib/validation";
-import { z } from "zod";
 
 export const dynamic = "force-dynamic";
+
+/**
+ * Per-address limit shared by both methods. Anonymous identities are free to
+ * mint, so the address is what actually bounds a script.
+ */
+async function limitByAddress(request: Request) {
+  const bucket = addressBucket("push:subscribe:addr", request);
+  if (!bucket) return null;
+
+  const result = await consumeRateLimit(
+    bucket,
+    LIMITS.pushSubscribeByAddress.limit,
+    LIMITS.pushSubscribeByAddress.windowMs,
+  );
+  return result.allowed ? null : tooMany(result);
+}
+
+/**
+ * Accept only zone names the runtime can actually resolve, so a bad value is
+ * rejected here rather than silently falling back to UTC at send time.
+ */
+const timezoneSchema = z
+  .string()
+  .max(64)
+  .refine((zone) => {
+    try {
+      new Intl.DateTimeFormat("en-US", { timeZone: zone });
+      return true;
+    } catch {
+      return false;
+    }
+  }, "Unknown time zone")
+  .nullable()
+  .default(null);
 
 const bodySchema = z.object({
   subscription: pushSubscriptionSchema,
@@ -15,27 +51,46 @@ const bodySchema = z.object({
       longitude: z.number().min(-180).max(180),
     })
     .nullable(),
+  timezone: timezoneSchema,
 });
 
-/** POST /api/push/subscribe — register or update this browser's subscription. */
+/**
+ * POST /api/push/subscribe — register or update this browser's subscription.
+ *
+ * Also the update path: the client re-posts the same subscription with new
+ * settings whenever alert preferences are saved, and the row is upserted on
+ * its endpoint.
+ */
 export async function POST(request: Request) {
   try {
     if (!pushConfigured()) {
       return badRequest("Push notifications are not configured on this server");
     }
 
+    const blocked = await limitByAddress(request);
+    if (blocked) return blocked;
+
     const identity = await getWritableIdentity();
+
+    const perIdentity = await consumeRateLimit(
+      `push:subscribe:${identity.id}`,
+      LIMITS.pushSubscribe.limit,
+      LIMITS.pushSubscribe.windowMs,
+    );
+    if (!perIdentity.allowed) return tooMany(perIdentity);
+
     const parsed = bodySchema.safeParse(await readJson(request));
     if (!parsed.success) {
       return badRequest("Invalid subscription", fieldErrors(parsed.error));
     }
 
-    saveSubscription({
+    await saveSubscription({
       identity: identity.id,
       endpoint: parsed.data.subscription.endpoint,
       keys: parsed.data.subscription.keys,
       settings: parsed.data.settings,
       center: parsed.data.center,
+      timezone: parsed.data.timezone,
     });
 
     return ok({ subscribed: true });
@@ -47,10 +102,15 @@ export async function POST(request: Request) {
 /** DELETE /api/push/subscribe — unsubscribe this browser. */
 export async function DELETE(request: Request) {
   try {
-    const body = (await readJson(request)) as { endpoint?: string };
-    if (!body.endpoint) return badRequest("endpoint is required");
+    const blocked = await limitByAddress(request);
+    if (blocked) return blocked;
 
-    removeSubscription(body.endpoint);
+    const parsed = z
+      .object({ endpoint: z.string().url() })
+      .safeParse(await readJson(request));
+    if (!parsed.success) return badRequest("endpoint is required");
+
+    await removeSubscription(parsed.data.endpoint);
     return ok({ subscribed: false });
   } catch (error) {
     return serverError(error, "DELETE /api/push/subscribe");

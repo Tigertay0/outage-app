@@ -130,6 +130,13 @@ export const LIMITS = {
    */
   createOutageByAddress: { limit: 20, windowMs: 60 * 60 * 1000 },
   commentByAddress: { limit: 60, windowMs: 60 * 60 * 1000 },
+  /**
+   * Each subscription is a recipient on every nearby report, so unbounded
+   * creation multiplies outbound sends. A browser legitimately re-posts on
+   * every settings save, hence room for a few per hour.
+   */
+  pushSubscribe: { limit: 12, windowMs: 60 * 60 * 1000 },
+  pushSubscribeByAddress: { limit: 30, windowMs: 60 * 60 * 1000 },
   confirm: { limit: 60, windowMs: 60 * 60 * 1000 },
   comment: { limit: 20, windowMs: 60 * 60 * 1000 },
   /** Nominatim's usage policy is one request per second, per source. */
