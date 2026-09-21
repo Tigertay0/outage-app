@@ -61,9 +61,47 @@ export const preferencesSchema = z.object({
     .nullable(),
 });
 
+/**
+ * The push services browsers actually issue endpoints from.
+ *
+ * The server POSTs to a subscription's endpoint whenever an outage is reported
+ * nearby. Accepting any URL made that a server-side request forgery primitive:
+ * register an endpoint of http://169.254.169.254/… or an internal hostname,
+ * report an outage next to it, and the server makes the request. Real
+ * endpoints only ever come from these hosts, over HTTPS.
+ */
+const PUSH_SERVICE_HOSTS = new Set([
+  "fcm.googleapis.com", // Chrome, Edge, Opera, Samsung Internet
+  "updates.push.services.mozilla.com", // Firefox
+  "web.push.apple.com", // Safari
+]);
+
+export function isPushServiceEndpoint(value: string): boolean {
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    return false;
+  }
+
+  if (url.protocol !== "https:" || url.port !== "" || url.username || url.password) {
+    return false;
+  }
+
+  const host = url.hostname.toLowerCase();
+  // Legacy Edge used Windows Notification Service across regional hosts.
+  return PUSH_SERVICE_HOSTS.has(host) || host.endsWith(".notify.windows.com");
+}
+
 export const pushSubscriptionSchema = z.object({
-  endpoint: z.string().url(),
-  keys: z.object({ p256dh: z.string(), auth: z.string() }),
+  endpoint: z
+    .string()
+    .max(1024)
+    .refine(isPushServiceEndpoint, "Not a browser push service endpoint"),
+  keys: z.object({
+    p256dh: z.string().min(1).max(256),
+    auth: z.string().min(1).max(64),
+  }),
 });
 
 /** Turn a ZodError into a flat field -> message map for the client. */

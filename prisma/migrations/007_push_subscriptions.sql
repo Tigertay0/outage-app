@@ -96,8 +96,16 @@ AS $$
              (SELECT rank FROM severity_rank
               WHERE name = s.settings->>'severityThreshold'),
              3
-           );
-$$;
+           )
+  -- A ceiling on recipients per report, nearest first. Subscription creation is
+  -- rate limited, but nothing else bounded how many sends one report could
+  -- trigger inside a single serverless invocation.
+  ORDER BY ST_Distance(
+    s.center,
+    ST_SetSRID(ST_MakePoint(outage_lng, outage_lat), 4326)::geography
+  )
+  LIMIT 500;
+$;
 
 REVOKE ALL ON FUNCTION push_targets(DOUBLE PRECISION, DOUBLE PRECISION, TEXT, UUID)
   FROM PUBLIC, anon, authenticated;
