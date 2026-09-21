@@ -6,6 +6,7 @@ import { haversineMeters } from "./geo";
 import { createServiceRoleClient } from "./supabase/server";
 import type { Json } from "./supabase/database.types";
 import type { NotificationSettings, Outage, Severity } from "./types";
+import { isPushServiceEndpoint } from "./validation";
 
 /**
  * Web Push (PRD section 4.7).
@@ -262,6 +263,15 @@ export interface PushPayload {
 }
 
 async function send(target: Target, payload: PushPayload): Promise<boolean> {
+  // Checked again here, not only at the edge: a row written before endpoint
+  // validation existed, or by anything other than the subscribe route, must
+  // still never turn a report into a request to an arbitrary host.
+  if (!isPushServiceEndpoint(target.endpoint)) {
+    console.error("[push] refusing non-push-service endpoint; removing it");
+    await removeSubscription(target.endpoint).catch(() => undefined);
+    return false;
+  }
+
   ensureVapid();
 
   try {
@@ -278,7 +288,13 @@ async function send(target: Target, payload: PushPayload): Promise<boolean> {
         console.error("[push] could not prune dead subscription", cause),
       );
     } else {
-      console.error("[push] send failed", status, error);
+      // Not the error object: web-push attaches the endpoint to it, and an
+      // endpoint is the whole credential for a subscription (see saveSubscription).
+      console.error(
+        "[push] send failed",
+        status ?? "no status",
+        error instanceof Error ? error.message.slice(0, 200) : "unknown error",
+      );
     }
     return false;
   }
