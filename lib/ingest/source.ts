@@ -22,6 +22,15 @@ export interface IngestedOutage {
   /** Stable within this source, so a repeated poll updates rather than adds. */
   sourceId: string;
   providerSlug: string | null;
+  /**
+   * The feed's own name for the provider. Shown when providerSlug does not
+   * match a row in `providers`, which for utility feeds is nearly always.
+   */
+  utilityName: string | null;
+  /** How many customers are affected, when the feed says. */
+  customersAffected: number | null;
+  /** When the outage began, if the feed says; otherwise first-seen is kept. */
+  reportedAt: string | null;
   serviceType: "power" | "internet" | "cellular" | "other";
   severity: Severity;
   latitude: number;

@@ -1,7 +1,7 @@
 "use client";
 
 import { CheckCircle2, ChevronUp, CloudAlert, Loader2, Plus } from "lucide-react";
-import { SEVERITY_META } from "@/lib/constants";
+import { SEVERITY_META, sourceLabel } from "@/lib/constants";
 import { formatDistance, haversineMeters } from "@/lib/geo";
 import { locationLabel, timeAgo } from "@/lib/format";
 import { useFilters } from "@/lib/store/filters";
@@ -157,7 +157,9 @@ export function NearbyPanel({
                     </span>
                     <span className="block text-xs tabular-nums text-muted-foreground">
                       {outage.origin === "official"
-                        ? (outage.sourceName ?? "feed")
+                        ? outage.customersAffected !== null
+                          ? `${outage.customersAffected.toLocaleString()} out · ${sourceLabel(outage.sourceName, "short")}`
+                          : sourceLabel(outage.sourceName, "short")
                         : `${outage.verificationCount} confirmed`}
                     </span>
                   </span>

@@ -217,7 +217,7 @@ RETURNS TABLE (
   is_verified BOOLEAN,
   origin VARCHAR(20),
   source_name VARCHAR(64)
-) AS $
+) AS $$
 DECLARE
   west  DOUBLE PRECISION := GREATEST(min_lng, -179.999999);
   east  DOUBLE PRECISION := LEAST(max_lng, 179.999999);
@@ -258,7 +258,7 @@ BEGIN
   ORDER BY o.reported_at DESC
   LIMIT max_results;
 END;
-$ LANGUAGE plpgsql STABLE;
+$$ LANGUAGE plpgsql STABLE;
 
 INSERT INTO schema_version (version, description) VALUES
   ('006', 'Outage provenance plus an advisories layer for public feeds')

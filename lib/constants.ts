@@ -64,3 +64,17 @@ export function dominantSeverity(severities: Severity[]): Severity {
 }
 
 export const MILES_TO_METERS = 1609.344;
+
+/**
+ * Display names for upstream feeds, keyed by the `source_name` stored on each
+ * ingested row. Doubles as attribution: these are other organisations' data.
+ */
+export const SOURCE_LABELS: Record<string, { name: string; short: string }> = {
+  odin: { name: "ODIN (Oak Ridge National Laboratory)", short: "ODIN" },
+  nws: { name: "National Weather Service", short: "NWS" },
+};
+
+export function sourceLabel(sourceName: string | null, form: "name" | "short" = "name"): string {
+  if (!sourceName) return form === "short" ? "feed" : "an official feed";
+  return SOURCE_LABELS[sourceName]?.[form] ?? sourceName;
+}

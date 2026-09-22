@@ -10,8 +10,9 @@ import {
   MessageSquare,
   Send,
   ThumbsUp,
+  Users,
 } from "lucide-react";
-import { SEVERITY_META, VERIFICATION_THRESHOLD } from "@/lib/constants";
+import { SEVERITY_META, VERIFICATION_THRESHOLD, sourceLabel } from "@/lib/constants";
 import { clockTime, dayAndTime, locationLabel, outageDuration, pluralize, timeAgo } from "@/lib/format";
 import {
   useAddComment,
@@ -147,11 +148,21 @@ export function OutageDetailSheet({
                   )
                 )}
 
+                {outage.customersAffected !== null && (
+                  <Badge variant="outline">
+                    <Users className="h-3 w-3" />
+                    {outage.customersAffected.toLocaleString()}{" "}
+                    {outage.customersAffected === 1 ? "customer" : "customers"}
+                  </Badge>
+                )}
+
                 <Badge variant="outline">
                   <Clock className="h-3 w-3" />
                   {isResolved
                     ? `Lasted ${outageDuration(outage)}`
-                    : `Out for ${outageDuration(outage)}`}
+                    : !outage.startKnown
+                      ? `First seen ${timeAgo(outage.reportedAt)}`
+                      : `Out for ${outageDuration(outage)}`}
                 </Badge>
 
                 {outage.estimatedRestoration && !isResolved && (
@@ -169,7 +180,7 @@ export function OutageDetailSheet({
 
               {outage.origin === "official" && (
                 <p className="py-2 text-sm text-muted-foreground">
-                  Reported by {outage.sourceName ?? "an official feed"}, not by a
+                  Reported by the utility via {sourceLabel(outage.sourceName)}, not by a
                   person. Confirmations do not apply.
                 </p>
               )}

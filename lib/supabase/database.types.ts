@@ -417,6 +417,8 @@ export interface Database {
           is_verified: boolean
           origin: 'crowdsourced' | 'official'
           source_name: string | null
+          customers_affected: number | null
+          start_known: boolean
         }[]
       }
       /** Added in migration 006 — viewport query for the advisory layer. */
@@ -448,6 +450,17 @@ export interface Database {
       prune_expired_advisories: {
         Args: Record<string, never>
         Returns: number
+      }
+      /** Added in migration 008 — service role only; applies a feed snapshot. */
+      sync_official_outages: {
+        Args: {
+          feed_source: string
+          feed_rows: Json
+        }
+        Returns: {
+          upserted: number
+          resolved: number
+        }[]
       }
       /** Added in migration 007 — service role only; returns subscriber keys. */
       push_targets: {

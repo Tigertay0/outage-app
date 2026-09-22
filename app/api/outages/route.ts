@@ -4,6 +4,7 @@ import { badRequest, ok, readJson, serverError, tooMany } from "@/lib/api";
 import { getRepository } from "@/lib/data";
 import { parseBboxParam } from "@/lib/geo";
 import { getWritableIdentity } from "@/lib/identity";
+import { refreshIfStale } from "@/lib/ingest/run";
 import { notifyNewOutage } from "@/lib/push";
 import {
   LIMITS,
@@ -20,6 +21,8 @@ import {
 import { createOutageSchema, fieldErrors } from "@/lib/validation";
 
 export const dynamic = "force-dynamic";
+// Room for a background feed refresh after the response; see GET.
+export const maxDuration = 60;
 
 /** Split a repeated/comma-joined query param into a validated enum list. */
 function parseEnumList<T extends string>(
@@ -94,6 +97,12 @@ export async function GET(request: NextRequest) {
       includeResolvedHours,
       limit,
     });
+
+    // Official outages come from feeds, and on the Hobby plan cron runs once a
+    // day, so reads top the data up. Advisories do the same; either one is
+    // enough, which matters because someone with the storm layer turned off
+    // never requests advisories at all. Concurrent triggers share one run.
+    after(() => refreshIfStale());
 
     return ok({ outages });
   } catch (error) {

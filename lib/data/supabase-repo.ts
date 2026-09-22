@@ -51,6 +51,8 @@ interface SearchRow {
   is_verified: boolean;
   origin: "crowdsourced" | "official";
   source_name: string | null;
+  customers_affected: number | null;
+  start_known: boolean;
 }
 
 function toOutage(row: SearchRow): Outage {
@@ -77,6 +79,8 @@ function toOutage(row: SearchRow): Outage {
     isVerified: row.is_verified,
     origin: row.origin,
     sourceName: row.source_name,
+    customersAffected: row.customers_affected,
+    startKnown: row.start_known,
   };
 }
 
