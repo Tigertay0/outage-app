@@ -31,8 +31,10 @@
  * estimated_restoration, reported_at (null when the feed does not say), and
  * metadata.
  *
- * reported_at: a feed-supplied start time wins; otherwise the first time we saw
- * the outage is kept across polls rather than being reset to now on every run.
+ * reported_at: the earliest start we have wins — a feed-supplied start time, or
+ * failing that the first time we saw the outage, kept across polls rather than
+ * reset to now on every run. A later value never replaces an earlier one, so a
+ * displayed duration never shrinks.
  * An outage that had been resolved and reappears is reopened with a fresh start.
  *
  * The caller must pass the *whole* snapshot. Anything absent is resolved, so a
@@ -66,6 +68,9 @@ BEGIN
       reported_at TIMESTAMPTZ,
       metadata JSONB
     )
+    -- Without an id a row can neither be upserted nor resolved; it would be
+    -- inserted afresh on every poll.
+    WHERE r.source_id IS NOT NULL
   ),
   written AS (
     INSERT INTO outages AS o (
@@ -102,10 +107,13 @@ BEGIN
   SET status = 'resolved', resolved_at = NOW()
   WHERE o.source_name = feed_source
     AND o.status = 'active'
-    AND NOT EXISTS (
-      SELECT 1
+    -- NOT IN over a subquery is hashed once, rather than re-scanning the JSON
+    -- array for every active row. The IS NOT NULL stops a null id from making
+    -- NOT IN match nothing.
+    AND o.source_id NOT IN (
+      SELECT r->>'source_id'
       FROM jsonb_array_elements(feed_rows) AS r
-      WHERE r->>'source_id' = o.source_id
+      WHERE r->>'source_id' IS NOT NULL
     );
   GET DIAGNOSTICS n_resolved = ROW_COUNT;
 
@@ -185,8 +193,12 @@ BEGIN
     o.reported_by, o.reported_at, o.resolved_at, o.estimated_restoration,
     o.verification_count, o.is_verified,
     o.origin, o.source_name,
-    (o.metadata->>'customers_affected')::INTEGER,
-    COALESCE((o.metadata->>'start_known')::BOOLEAN, TRUE)
+    -- Type-checked before casting: one malformed row must not make the cast
+    -- throw and fail the search for everyone.
+    CASE WHEN jsonb_typeof(o.metadata->'customers_affected') = 'number'
+      THEN (o.metadata->>'customers_affected')::NUMERIC::INTEGER END,
+    CASE WHEN jsonb_typeof(o.metadata->'start_known') = 'boolean'
+      THEN (o.metadata->>'start_known')::BOOLEAN ELSE TRUE END
   FROM outages o
   LEFT JOIN providers p ON p.id = o.provider_id
   WHERE
