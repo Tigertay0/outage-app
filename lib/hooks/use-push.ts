@@ -126,17 +126,9 @@ export function usePush() {
           applicationServerKey: urlBase64ToUint8Array(publicKey),
         });
 
-        const response = await fetch("/api/push/subscribe", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            subscription: subscription.toJSON(),
-            settings,
-            center,
-          }),
-        });
-
-        if (!response.ok) throw new Error("Server rejected the subscription");
+        // Shared with resync so the first subscribe also sends the browser's
+        // time zone; without it quiet hours were evaluated in UTC.
+        await postSubscription(subscription, settings, center);
 
         setSubscribed(true);
         return true;
@@ -177,24 +169,42 @@ export function usePush() {
     [supported, publicKey],
   );
 
+  /**
+   * Returns false when the server did not remove the subscription. The local
+   * browser subscription is kept in that case: dropping it while the server row
+   * lives on would leave alerts arriving with the toggle showing "off".
+   */
   const unsubscribe = useCallback(async () => {
-    if (!supported) return;
+    if (!supported) return true;
 
     setBusy(true);
+    setError(null);
     try {
       const registration = await navigator.serviceWorker.getRegistration();
       const subscription = await registration?.pushManager.getSubscription();
 
       if (subscription) {
-        await fetch("/api/push/subscribe", {
+        const response = await fetch("/api/push/subscribe", {
           method: "DELETE",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ endpoint: subscription.endpoint }),
         });
+        if (!response.ok) {
+          const body = (await response.json().catch(() => ({}))) as {
+            error?: string;
+          };
+          throw new Error(body.error ?? "Could not turn off alerts.");
+        }
         await subscription.unsubscribe();
       }
 
       setSubscribed(false);
+      return true;
+    } catch (cause) {
+      setError(
+        cause instanceof Error ? cause.message : "Could not turn off alerts.",
+      );
+      return false;
     } finally {
       setBusy(false);
     }

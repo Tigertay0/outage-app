@@ -21,8 +21,12 @@ export function ServiceWorkerRegistrar() {
     };
 
     // Wait for load so registration never competes with the first paint.
-    if (document.readyState === "complete") register();
-    else window.addEventListener("load", register, { once: true });
+    if (document.readyState === "complete") {
+      register();
+      return;
+    }
+    window.addEventListener("load", register, { once: true });
+    return () => window.removeEventListener("load", register);
   }, []);
 
   return null;

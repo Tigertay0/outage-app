@@ -1,3 +1,4 @@
+import { MILES_TO_METERS } from "./constants";
 import type { BoundingBox } from "./types";
 
 const EARTH_RADIUS_M = 6_371_000;
@@ -49,7 +50,7 @@ export function parseBboxParam(raw: string | null): BoundingBox | undefined {
 }
 
 export function formatDistance(meters: number): string {
-  const miles = meters / 1609.344;
+  const miles = meters / MILES_TO_METERS;
   if (miles < 0.1) return "nearby";
   if (miles < 10) return `${miles.toFixed(1)} mi away`;
   return `${Math.round(miles)} mi away`;

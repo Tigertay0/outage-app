@@ -72,6 +72,15 @@ export function OutageDetailSheet({
     }
   }
 
+  function toastFailure(title: string) {
+    return (error: unknown) =>
+      toast({
+        variant: "destructive",
+        title,
+        description: error instanceof Error ? error.message : "Please try again.",
+      });
+  }
+
   const isResolved = outage?.status === "resolved";
   const remaining = outage
     ? Math.max(0, VERIFICATION_THRESHOLD - outage.verificationCount)
@@ -169,7 +178,11 @@ export function OutageDetailSheet({
                 <div className="flex gap-2 py-2">
                   <Button
                     variant={outage.confirmedByMe ? "secondary" : "default"}
-                    onClick={() => confirm.mutate(!outage.confirmedByMe)}
+                    onClick={() =>
+                      confirm.mutate(!outage.confirmedByMe, {
+                        onError: toastFailure("Could not update your confirmation"),
+                      })
+                    }
                     disabled={confirm.isPending}
                     className="flex-1"
                   >
@@ -184,7 +197,11 @@ export function OutageDetailSheet({
 
                   <Button
                     variant="outline"
-                    onClick={() => resolve.mutate()}
+                    onClick={() =>
+                      resolve.mutate(undefined, {
+                        onError: toastFailure("Could not record that it's back"),
+                      })
+                    }
                     disabled={resolve.isPending}
                   >
                     <CheckCircle2 className="h-4 w-4" />

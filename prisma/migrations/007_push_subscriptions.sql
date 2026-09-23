@@ -105,7 +105,7 @@ AS $$
     ST_SetSRID(ST_MakePoint(outage_lng, outage_lat), 4326)::geography
   )
   LIMIT 500;
-$;
+$$;
 
 REVOKE ALL ON FUNCTION push_targets(DOUBLE PRECISION, DOUBLE PRECISION, TEXT, UUID)
   FROM PUBLIC, anon, authenticated;

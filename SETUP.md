@@ -63,8 +63,11 @@ without it.
    — outage provenance and the weather-advisory layer.
 7. [`prisma/migrations/007_push_subscriptions.sql`](prisma/migrations/007_push_subscriptions.sql)
    — push subscriptions stored and matched in Postgres.
+8. [`prisma/migrations/008_trigger_privileges_and_guards.sql`](prisma/migrations/008_trigger_privileges_and_guards.sql)
+   — confirmations and resolution votes from other users actually update the
+   outage, server-owned outage columns are locked, rate limits are race-free.
 
-All seven are idempotent, so re-running them is safe.
+All eight are idempotent, so re-running them is safe.
 
 ### 4. Enable anonymous sign-ins
 

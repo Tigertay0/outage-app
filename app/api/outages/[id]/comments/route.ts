@@ -8,8 +8,7 @@ import {
 } from "@/lib/api";
 import { getRepository } from "@/lib/data";
 import { getWritableIdentity } from "@/lib/identity";
-import { addressBucket } from "@/lib/client-address";
-import { LIMITS, consumeRateLimit } from "@/lib/rate-limit";
+import { LIMITS, consumeAddressLimit, consumeRateLimit } from "@/lib/rate-limit";
 import { commentSchema, fieldErrors } from "@/lib/validation";
 
 export const dynamic = "force-dynamic";
@@ -30,15 +29,12 @@ export async function POST(
     );
     if (!perIdentity.allowed) return tooMany(perIdentity);
 
-    const bucket = addressBucket("outage:comment:addr", request);
-    if (bucket) {
-      const perAddress = await consumeRateLimit(
-        bucket,
-        LIMITS.commentByAddress.limit,
-        LIMITS.commentByAddress.windowMs,
-      );
-      if (!perAddress.allowed) return tooMany(perAddress);
-    }
+    const perAddress = await consumeAddressLimit(
+      "outage:comment:addr",
+      request,
+      LIMITS.commentByAddress,
+    );
+    if (perAddress) return tooMany(perAddress);
 
     const parsed = commentSchema.safeParse(await readJson(request));
     if (!parsed.success) {

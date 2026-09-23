@@ -123,7 +123,6 @@ export function OutageMap({
     [leaves, expansionZoom],
   );
 
-  /** Read the current viewport off the map and push it upward. */
   /**
    * Publish the map's viewport upward.
    *
@@ -220,7 +219,14 @@ export function OutageMap({
         // Fit the country to whatever viewport this actually is, then report
         // the resulting bounds. Padding keeps markers clear of the search bar
         // above and the list panel below.
-        if (!flyTo) {
+        // A flyTo that arrived before the map existed was skipped by the effect
+        // above (no ref yet), so apply it here instead of losing it.
+        if (flyTo) {
+          map.jumpTo({
+            center: [flyTo.longitude, flyTo.latitude],
+            zoom: flyTo.zoom,
+          });
+        } else {
           map.fitBounds(HOME_BOUNDS, {
             padding: chromePadding(map),
             duration: 0,

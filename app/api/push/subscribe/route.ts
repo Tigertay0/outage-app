@@ -1,27 +1,20 @@
 import { z } from "zod";
 import { badRequest, ok, readJson, serverError, tooMany } from "@/lib/api";
-import { addressBucket } from "@/lib/client-address";
-import { LIMITS, consumeRateLimit } from "@/lib/rate-limit";
+import { LIMITS, consumeAddressLimit, consumeRateLimit } from "@/lib/rate-limit";
 import { getWritableIdentity } from "@/lib/identity";
 import { pushConfigured, removeSubscription, saveSubscription } from "@/lib/push";
 import { fieldErrors, preferencesSchema, pushSubscriptionSchema } from "@/lib/validation";
 
 export const dynamic = "force-dynamic";
 
-/**
- * Per-address limit shared by both methods. Anonymous identities are free to
- * mint, so the address is what actually bounds a script.
- */
+/** Per-address limit shared by both methods. */
 async function limitByAddress(request: Request) {
-  const bucket = addressBucket("push:subscribe:addr", request);
-  if (!bucket) return null;
-
-  const result = await consumeRateLimit(
-    bucket,
-    LIMITS.pushSubscribeByAddress.limit,
-    LIMITS.pushSubscribeByAddress.windowMs,
+  const blocked = await consumeAddressLimit(
+    "push:subscribe:addr",
+    request,
+    LIMITS.pushSubscribeByAddress,
   );
-  return result.allowed ? null : tooMany(result);
+  return blocked ? tooMany(blocked) : null;
 }
 
 /**
@@ -106,7 +99,7 @@ export async function DELETE(request: Request) {
     if (blocked) return blocked;
 
     const parsed = z
-      .object({ endpoint: z.string().url() })
+      .object({ endpoint: pushSubscriptionSchema.shape.endpoint })
       .safeParse(await readJson(request));
     if (!parsed.success) return badRequest("endpoint is required");
 
