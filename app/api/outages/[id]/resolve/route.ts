@@ -1,6 +1,7 @@
-import { notFound, ok, serverError } from "@/lib/api";
+import { notFound, ok, serverError, tooMany } from "@/lib/api";
 import { getRepository } from "@/lib/data";
 import { getWritableIdentity } from "@/lib/identity";
+import { LIMITS, consumeAddressLimit, consumeRateLimit } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 
@@ -12,12 +13,26 @@ export const dynamic = "force-dynamic";
  * immediately, which is fine for demo data.
  */
 export async function POST(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
     const { id } = await params;
     const identity = await getWritableIdentity();
+
+    const perIdentity = await consumeRateLimit(
+      `outage:resolve:${identity.id}`,
+      LIMITS.resolve.limit,
+      LIMITS.resolve.windowMs,
+    );
+    if (!perIdentity.allowed) return tooMany(perIdentity);
+
+    const perAddress = await consumeAddressLimit(
+      "outage:resolve:addr",
+      request,
+      LIMITS.resolveByAddress,
+    );
+    if (perAddress) return tooMany(perAddress);
 
     const outage = await getRepository().resolveOutage(id, identity.id);
     if (!outage) return notFound("That outage no longer exists");

@@ -203,8 +203,11 @@ export class SupabaseRepository implements Repository {
   ): Promise<OutageDetail | null> {
     const supabase = await this.client();
 
-    const [{ data: rows }, { data: commentRows }, { data: mine }] =
-      await Promise.all([
+    const [
+      { data: rows, error: rowsError },
+      { data: commentRows, error: commentsError },
+      { data: mine, error: mineError },
+    ] = await Promise.all([
         // outage_ids bypasses the viewport and status filters, so a resolved
         // outage opened from a link or a notification still loads.
         supabase.rpc("search_outages", { outage_ids: [id], max_results: 1 }),
@@ -220,8 +223,13 @@ export class SupabaseRepository implements Repository {
               .eq("outage_id", id)
               .eq("user_id", identity)
               .maybeSingle()
-          : Promise.resolve({ data: null }),
+          : Promise.resolve({ data: null, error: null }),
       ]);
+
+    // Without these checks a failed query reads as "no such outage" (404).
+    if (rowsError) throw new Error(`getOutage: ${rowsError.message}`);
+    if (commentsError) throw new Error(`getOutage comments: ${commentsError.message}`);
+    if (mineError) throw new Error(`getOutage confirmation: ${mineError.message}`);
 
     const row = ((rows ?? []) as SearchRow[])[0];
     if (!row) return null;
@@ -282,9 +290,13 @@ export class SupabaseRepository implements Repository {
 
     // The reporter implicitly confirms their own report, which also fires the
     // verification trigger and sets verification_count to 1.
-    await supabase
+    const { error: confirmError } = await supabase
       .from("outage_confirmations")
       .insert({ outage_id: id, user_id: identity });
+
+    if (confirmError) {
+      throw new Error(`createOutage confirmation: ${confirmError.message}`);
+    }
 
     const created = await this.getOutage(id, identity);
     if (!created) throw new Error("createOutage: row vanished after insert");
@@ -391,12 +403,13 @@ export class SupabaseRepository implements Repository {
   async getPreferences(identity: string): Promise<UserPreferences | null> {
     const supabase = await this.client();
 
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("user_preferences")
       .select("saved_providers, saved_locations, notification_settings, default_zoom")
       .eq("user_id", identity)
       .maybeSingle();
 
+    if (error) throw new Error(`getPreferences: ${error.message}`);
     if (!data) return null;
 
     const row = data as {

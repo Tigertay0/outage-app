@@ -43,7 +43,7 @@ export function SearchBar({
     return () => clearTimeout(timer);
   }, [value]);
 
-  const { data: results = [], isFetching } = useQuery({
+  const { data: results = [], isFetching, isError } = useQuery({
     queryKey: ["geocode", debounced],
     enabled: debounced.length >= 2,
     staleTime: 10 * 60 * 1000,
@@ -51,7 +51,8 @@ export function SearchBar({
       const response = await fetch(
         `/api/geocode?q=${encodeURIComponent(debounced)}`,
       );
-      if (!response.ok) return [];
+      // Throw so a rate limit or upstream failure is not shown as "no matches".
+      if (!response.ok) throw new Error(`Geocode failed: ${response.status}`);
       const body = (await response.json()) as { results: GeocodeResult[] };
       return body.results;
     },
@@ -194,7 +195,13 @@ export function SearchBar({
             </p>
           )}
 
-          {!isFetching && debounced.length >= 2 && results.length === 0 && (
+          {!isFetching && isError && (
+            <p className="px-4 py-3 text-sm text-muted-foreground">
+              Search is unavailable right now. Try again shortly.
+            </p>
+          )}
+
+          {!isFetching && !isError && debounced.length >= 2 && results.length === 0 && (
             <p className="px-4 py-3 text-sm text-muted-foreground">
               No places matched “{debounced}”.
             </p>

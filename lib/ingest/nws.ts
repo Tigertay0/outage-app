@@ -159,6 +159,20 @@ function headers(): HeadersInit {
 }
 
 /**
+ * The alert link is rendered as an href, so only http(s) survives ingest; a
+ * javascript: or data: URL from a bad feed record would run on click.
+ */
+function httpUrlOrNull(value: string | undefined): string | null {
+  if (!value) return null;
+  try {
+    const { protocol } = new URL(value);
+    return protocol === "https:" || protocol === "http:" ? value : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Centroid of an NWS forecast zone, cached.
  *
  * Returns null — and caches that — for a zone that cannot be resolved, so a
@@ -239,7 +253,7 @@ export class NwsSource implements OutageSource {
         // The full description runs to several paragraphs of forecast prose.
         description: feature.properties.description?.slice(0, 1000) ?? null,
         areaDescription: feature.properties.areaDesc,
-        url: feature.properties["@id"] ?? null,
+        url: httpUrlOrNull(feature.properties["@id"]),
         latitude: point[0],
         longitude: point[1],
         startsAt: feature.properties.onset ?? feature.properties.effective,

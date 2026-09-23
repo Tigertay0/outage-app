@@ -113,7 +113,9 @@ function SettingsForm({
     updateNotifications({ enabled });
 
     if (!enabled) {
-      await push.unsubscribe();
+      // Keep the switch on if the server still holds the subscription.
+      const removed = await push.unsubscribe();
+      if (!removed) updateNotifications({ enabled: true });
       return;
     }
 

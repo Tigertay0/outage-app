@@ -1,4 +1,5 @@
 import "server-only";
+import { addressBucket } from "./client-address";
 import { isSupabaseConfigured } from "./data";
 import { createServerSupabaseClient } from "./supabase/server";
 
@@ -120,6 +121,24 @@ export async function consumeRateLimit(
   }
 }
 
+/**
+ * Per-address layer over a per-identity limit. Anonymous identities are free to
+ * mint, so the address is what actually bounds a script. Returns the blocking
+ * result, or null when the request may proceed (including when the address is
+ * unknown).
+ */
+export async function consumeAddressLimit(
+  prefix: string,
+  request: Request,
+  config: { limit: number; windowMs: number },
+): Promise<RateLimitResult | null> {
+  const bucket = addressBucket(prefix, request);
+  if (!bucket) return null;
+
+  const result = await consumeRateLimit(bucket, config.limit, config.windowMs);
+  return result.allowed ? null : result;
+}
+
 export const LIMITS = {
   /** Reports are the expensive, abusable action. */
   createOutage: { limit: 5, windowMs: 60 * 60 * 1000 },
@@ -137,7 +156,16 @@ export const LIMITS = {
    */
   pushSubscribe: { limit: 12, windowMs: 60 * 60 * 1000 },
   pushSubscribeByAddress: { limit: 30, windowMs: 60 * 60 * 1000 },
+  /** Shared by confirm and unconfirm, so toggling cannot sidestep the cap. */
   confirm: { limit: 60, windowMs: 60 * 60 * 1000 },
+  confirmByAddress: { limit: 150, windowMs: 60 * 60 * 1000 },
+  /**
+   * Two votes from distinct identities resolve an outage, and anonymous
+   * identities are free, so the address layer is what protects real outages
+   * from being closed by one script.
+   */
+  resolve: { limit: 20, windowMs: 60 * 60 * 1000 },
+  resolveByAddress: { limit: 30, windowMs: 60 * 60 * 1000 },
   comment: { limit: 20, windowMs: 60 * 60 * 1000 },
   /** Nominatim's usage policy is one request per second, per source. */
   geocode: { limit: 30, windowMs: 60 * 1000 },

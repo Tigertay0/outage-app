@@ -4,9 +4,13 @@ import { badRequest, ok, readJson, serverError, tooMany } from "@/lib/api";
 import { getRepository } from "@/lib/data";
 import { parseBboxParam } from "@/lib/geo";
 import { getWritableIdentity } from "@/lib/identity";
-import { addressBucket } from "@/lib/client-address";
 import { notifyNewOutage } from "@/lib/push";
-import { LIMITS, consumeRateLimit, pruneRateLimits } from "@/lib/rate-limit";
+import {
+  LIMITS,
+  consumeAddressLimit,
+  consumeRateLimit,
+  pruneRateLimits,
+} from "@/lib/rate-limit";
 import {
   SERVICE_TYPES,
   SEVERITIES,
@@ -114,15 +118,12 @@ export async function POST(request: NextRequest) {
     );
     if (!perIdentity.allowed) return tooMany(perIdentity);
 
-    const bucket = addressBucket("outage:create:addr", request);
-    if (bucket) {
-      const perAddress = await consumeRateLimit(
-        bucket,
-        LIMITS.createOutageByAddress.limit,
-        LIMITS.createOutageByAddress.windowMs,
-      );
-      if (!perAddress.allowed) return tooMany(perAddress);
-    }
+    const perAddress = await consumeAddressLimit(
+      "outage:create:addr",
+      request,
+      LIMITS.createOutageByAddress,
+    );
+    if (perAddress) return tooMany(perAddress);
 
     const parsed = createOutageSchema.safeParse(await readJson(request));
     if (!parsed.success) {
