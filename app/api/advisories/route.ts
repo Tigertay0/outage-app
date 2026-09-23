@@ -6,6 +6,9 @@ import { parseBboxParam } from "@/lib/geo";
 import { refreshIfStale } from "@/lib/ingest/run";
 
 export const dynamic = "force-dynamic";
+// The background refresh after the response fetches NWS, its zone geometry
+// and ODIN; the default function limit is too tight for that.
+export const maxDuration = 60;
 
 /**
  * GET /api/advisories?bbox=minLng,minLat,maxLng,maxLat

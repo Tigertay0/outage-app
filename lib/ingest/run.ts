@@ -1,7 +1,9 @@
 import "server-only";
 import { isSupabaseConfigured } from "@/lib/data";
 import { createServiceRoleClient } from "@/lib/supabase/server";
+import type { Json } from "@/lib/supabase/database.types";
 import { NwsSource } from "./nws";
+import { OdinSource } from "./odin";
 import type { IngestedAdvisory, IngestedOutage, OutageSource } from "./source";
 
 /**
@@ -17,7 +19,7 @@ import type { IngestedAdvisory, IngestedOutage, OutageSource } from "./source";
  * every few minutes updates in place instead of duplicating.
  */
 
-const SOURCES: OutageSource[] = [new NwsSource()];
+const SOURCES: OutageSource[] = [new NwsSource(), new OdinSource()];
 
 export interface SourceReport {
   source: string;
@@ -62,86 +64,52 @@ async function upsertAdvisories(
   if (error) throw new Error(`advisories upsert: ${error.message}`);
 }
 
-async function upsertOutages(
+/**
+ * Apply a source's full outage snapshot: upsert what it reports, resolve what
+ * it no longer does.
+ *
+ * One atomic SQL call (migration 008) rather than an upsert plus a cleanup
+ * query from here. The unique index on (source_name, source_id) is partial,
+ * and PostgREST cannot express a partial index in ON CONFLICT, so the previous
+ * client-side upsert would have failed on the first source that returned
+ * outages. Doing both halves in one transaction also means a reader never sees
+ * the snapshot half applied.
+ */
+async function syncOutages(
   client: ReturnType<typeof createServiceRoleClient>,
   sourceName: string,
   outages: IngestedOutage[],
-): Promise<number> {
-  const live = outages.filter((o) => o.active);
-  if (live.length === 0) return 0;
+): Promise<{ upserted: number; resolved: number }> {
+  const rows = outages
+    .filter((o) => o.active)
+    .map((o) => ({
+      source_id: o.sourceId,
+      service_type: o.serviceType,
+      severity: o.severity,
+      latitude: o.latitude,
+      longitude: o.longitude,
+      city: o.city,
+      state: o.state,
+      description: o.description,
+      estimated_restoration: o.estimatedRestoration,
+      reported_at: o.reportedAt,
+      metadata: {
+        utility_name: o.utilityName,
+        customers_affected: o.customersAffected,
+        // Without a feed start time, reported_at is only when we first saw it.
+        start_known: o.reportedAt !== null,
+      },
+    }));
 
-  // Provider slugs are resolved in one pass rather than per row.
-  const slugs = [...new Set(live.map((o) => o.providerSlug).filter(Boolean))];
-  const providerIds = new Map<string, string>();
+  const { data, error } = await client.rpc("sync_official_outages", {
+    feed_source: sourceName,
+    feed_rows: rows as unknown as Json,
+  });
 
-  if (slugs.length > 0) {
-    const { data } = await client
-      .from("providers")
-      .select("id, slug")
-      .in("slug", slugs as string[]);
+  if (error) throw new Error(`sync_official_outages: ${error.message}`);
 
-    for (const row of (data ?? []) as Array<{ id: string; slug: string }>) {
-      providerIds.set(row.slug, row.id);
-    }
-  }
-
-  const rows = live.map((o) => ({
-    source_name: sourceName,
-    source_id: o.sourceId,
-    origin: "official" as const,
-    provider_id: o.providerSlug
-      ? (providerIds.get(o.providerSlug) ?? null)
-      : null,
-    service_type: o.serviceType,
-    severity: o.severity,
-    status: "active" as const,
-    location: `SRID=4326;POINT(${o.longitude} ${o.latitude})`,
-    city: o.city,
-    state: o.state,
-    description: o.description,
-    estimated_restoration: o.estimatedRestoration,
-  }));
-
-  const { error } = await client
-    .from("outages")
-    .upsert(rows as never, { onConflict: "source_name,source_id" });
-
-  if (error) throw new Error(`outages upsert: ${error.message}`);
-  return rows.length;
-}
-
-/**
- * Close ingested outages the source has stopped reporting.
- *
- * Only rows this source owns, and only ones it did not just send: an upstream
- * feed dropping a row is how it says "restored". Crowdsourced reports are never
- * touched.
- */
-async function resolveMissing(
-  client: ReturnType<typeof createServiceRoleClient>,
-  sourceName: string,
-  stillPresent: string[],
-): Promise<number> {
-  let query = client
-    .from("outages")
-    .update({ status: "resolved", resolved_at: new Date().toISOString() } as never)
-    .eq("source_name", sourceName)
-    .eq("status", "active");
-
-  if (stillPresent.length > 0) {
-    // PostgREST needs the list quoted for `not.in`.
-    query = query.not(
-      "source_id",
-      "in",
-      `(${stillPresent.map((id) => `"${id}"`).join(",")})`,
-    );
-  }
-
-  // `select()` after an update returns the affected rows, which is how many
-  // this closed. The count option is not available on an update builder.
-  const { data, error } = await query.select("id");
-  if (error) throw new Error(`resolve missing: ${error.message}`);
-  return (data ?? []).length;
+  const result = (data ?? [])[0];
+  return { upserted: result?.upserted ?? 0, resolved: result?.resolved ?? 0 };
 }
 
 export async function runIngest(): Promise<IngestReport> {
@@ -171,14 +139,14 @@ export async function runIngest(): Promise<IngestReport> {
       const outages = result.outages ?? [];
 
       await upsertAdvisories(client, source.name, advisories);
-      const written = await upsertOutages(client, source.name, outages);
 
-      if (outages.length > 0) {
-        outagesResolved += await resolveMissing(
-          client,
-          source.name,
-          outages.filter((o) => o.active).map((o) => o.sourceId),
-        );
+      // Only sources that deal in outages get a sync. An advisory-only source
+      // returning no outages must not be read as "every outage is resolved".
+      let written = 0;
+      if (result.outages !== undefined) {
+        const synced = await syncOutages(client, source.name, outages);
+        written = synced.upserted;
+        outagesResolved += synced.resolved;
       }
 
       reports.push({

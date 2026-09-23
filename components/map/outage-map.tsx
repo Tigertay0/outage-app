@@ -317,7 +317,9 @@ export function OutageMap({
               <OutageMarker
                 serviceType={outage.serviceType}
                 severity={outage.severity}
-                isVerified={outage.isVerified}
+                // A utility's own report needs no crowd confirmation; drawing it
+                // dashed like an unverified guess would misstate it.
+                isVerified={outage.isVerified || outage.origin === "official"}
                 isResolved={outage.status === "resolved"}
                 isSelected={outage.id === selectedId}
                 isFresh={ageMinutes <= FRESH_MINUTES}

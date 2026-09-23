@@ -83,6 +83,8 @@ function seed(): Store {
       isVerified: row.confirmations >= VERIFICATION_THRESHOLD,
       origin: "crowdsourced",
       sourceName: null,
+      customersAffected: null,
+      startKnown: true,
     });
 
     // Seeded confirmations are attributed to synthetic identities so the
@@ -254,6 +256,8 @@ export class LocalRepository implements Repository {
       isVerified: false,
       origin: "crowdsourced",
       sourceName: null,
+      customersAffected: null,
+      startKnown: true,
     };
 
     store.outages.set(id, outage);

@@ -48,6 +48,13 @@ export interface Outage {
   origin: OutageOrigin;
   /** Which feed produced this, when origin is "official". */
   sourceName: string | null;
+  /** Customers affected, when the source reports it (official feeds do). */
+  customersAffected: number | null;
+  /**
+   * False when reportedAt is only when an upstream feed was first seen
+   * reporting this, rather than when it actually began.
+   */
+  startKnown: boolean;
 }
 
 export interface OutageComment {
