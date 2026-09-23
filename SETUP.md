@@ -66,8 +66,11 @@ without it.
 8. [`prisma/migrations/008_trigger_privileges_and_guards.sql`](prisma/migrations/008_trigger_privileges_and_guards.sql)
    — confirmations and resolution votes from other users actually update the
    outage, server-owned outage columns are locked, rate limits are race-free.
+9. [`prisma/migrations/009_official_outage_sync.sql`](prisma/migrations/009_official_outage_sync.sql)
+   — atomic snapshot sync for official feeds, plus the utility's own name and
+   customer count in search results.
 
-All eight are idempotent, so re-running them is safe.
+All nine are idempotent, so re-running them is safe.
 
 ### 4. Enable anonymous sign-ins
 

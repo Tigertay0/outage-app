@@ -1,4 +1,4 @@
--- Outage Tracker - Migration 008
+-- Outage Tracker - Migration 009
 --
 -- Real power outages from ODIN (Outage Data Initiative Nationwide), the
 -- DOE / Oak Ridge National Laboratory programme through which utilities publish
@@ -226,5 +226,5 @@ END;
 $$ LANGUAGE plpgsql STABLE;
 
 INSERT INTO schema_version (version, description) VALUES
-  ('008', 'Atomic feed sync for official outages; utility name and scale in search')
+  ('009', 'Atomic feed sync for official outages; utility name and scale in search')
 ON CONFLICT DO NOTHING;
