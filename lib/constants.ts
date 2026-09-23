@@ -69,12 +69,51 @@ export const MILES_TO_METERS = 1609.344;
  * Display names for upstream feeds, keyed by the `source_name` stored on each
  * ingested row. Doubles as attribution: these are other organisations' data.
  */
-export const SOURCE_LABELS: Record<string, { name: string; short: string }> = {
-  odin: { name: "ODIN (Oak Ridge National Laboratory)", short: "ODIN" },
-  nws: { name: "National Weather Service", short: "NWS" },
+interface SourceMeta {
+  name: string;
+  short: string;
+  /**
+   * How the feed knows. A utility saying "our customers are off supply" and a
+   * research group inferring "this region stopped answering" are different
+   * claims, and the detail sheet must not present the second as the first.
+   */
+  provenance: "reported" | "detected";
+}
+
+export const SOURCE_LABELS: Record<string, SourceMeta> = {
+  odin: {
+    name: "ODIN (Oak Ridge National Laboratory)",
+    short: "ODIN",
+    provenance: "reported",
+  },
+  nws: {
+    name: "National Weather Service",
+    short: "NWS",
+    provenance: "reported",
+  },
+  ioda: {
+    name: "IODA (Georgia Tech)",
+    short: "IODA",
+    provenance: "detected",
+  },
 };
 
 export function sourceLabel(sourceName: string | null, form: "name" | "short" = "name"): string {
   if (!sourceName) return form === "short" ? "feed" : "an official feed";
   return SOURCE_LABELS[sourceName]?.[form] ?? sourceName;
+}
+
+/** One sentence saying where an ingested row came from, and how sure it is. */
+export function sourceAttribution(sourceName: string | null): string {
+  const meta = sourceName ? SOURCE_LABELS[sourceName] : undefined;
+  const label = sourceLabel(sourceName);
+
+  if (meta?.provenance === "detected") {
+    return (
+      `Detected by ${label} from network measurements, not reported by a provider. ` +
+      `Individual providers in the area may be unaffected.`
+    );
+  }
+
+  return `Reported by the utility via ${label}, not by a person. Confirmations do not apply.`;
 }

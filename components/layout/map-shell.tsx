@@ -10,6 +10,7 @@ import type { Advisory, BoundingBox, GeocodeResult, Outage } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
 import { FilterSheet } from "@/components/filters/filter-sheet";
+import { TypeChips } from "@/components/filters/type-chips";
 import { MapLegend } from "@/components/map/markers";
 import { OutageMap, type MapView } from "@/components/map/outage-map";
 import { NearbyPanel } from "@/components/layout/nearby-panel";
@@ -222,6 +223,9 @@ export function MapShell() {
             onOpenFilters={() => setFiltersOpen(true)}
             activeFilterCount={filterCount}
           />
+          {/* Hidden while placing a report: the map is a picker then, and the
+              chips would change what is under the crosshair mid-gesture. */}
+          {!picking && <TypeChips />}
         </div>
       </div>
 
