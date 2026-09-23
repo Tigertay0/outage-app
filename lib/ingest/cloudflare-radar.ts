@@ -1,5 +1,6 @@
 import "server-only";
 import type { Severity } from "@/lib/types";
+import { FETCH_TIMEOUT_MS } from "./source";
 import type { IngestedOutage, OutageSource, SourceResult } from "./source";
 import { US_STATE_CENTROIDS } from "./us-regions";
 
@@ -146,7 +147,7 @@ export class CloudflareRadarSource implements OutageSource {
         Authorization: `Bearer ${token}`,
         Accept: "application/json",
       },
-      signal: AbortSignal.timeout(30_000),
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
       cache: "no-store",
     });
 

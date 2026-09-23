@@ -1,7 +1,12 @@
 import "server-only";
 import { addressBucket } from "./client-address";
 import { isSupabaseConfigured } from "./data";
-import { createServerSupabaseClient } from "./supabase/server";
+import { createServerSupabaseClient, createServiceRoleClient } from "./supabase/server";
+
+/** Whether the server can act for itself rather than as the calling user. */
+function serviceRoleAvailable(): boolean {
+  return (process.env.SUPABASE_SERVICE_ROLE_KEY ?? "").trim().length > 0;
+}
 
 /**
  * Fixed-window rate limiting.
@@ -93,7 +98,17 @@ export async function consumeRateLimit(
   }
 
   try {
-    const supabase = await createServerSupabaseClient();
+    // Service role, not the caller's session. consume_rate_limit takes the
+    // bucket key as an argument, so a client able to call it directly could
+    // spend someone else's quota — name their bucket, burn their allowance,
+    // and they can no longer report an outage. Counting is the server's job,
+    // and migration 010 revokes the function from anon and authenticated to
+    // match. Without a service-role key the catch below falls back to the
+    // in-process limiter, which is the same degradation as a database outage.
+    const supabase = serviceRoleAvailable()
+      ? createServiceRoleClient()
+      : await createServerSupabaseClient();
+
     const { data, error } = await supabase.rpc("consume_rate_limit", {
       bucket_key: key,
       max_hits: limit,
