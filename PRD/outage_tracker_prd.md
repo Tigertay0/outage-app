@@ -10,9 +10,9 @@
 
 ## 1. Executive Summary
 
-Outage Tracker is a mobile-first web application designed to provide users with real-time visibility into service outages across multiple providers and service types. The app combines crowdsourced reports with official provider data to create a comprehensive, interactive map showing power, internet, cellular, and other service disruptions.
+Outage Tracker is a mobile-first web app that shows power, internet, cellular, and other service outages on one live map. It combines crowdsourced reports with official provider data rather than making users check each provider's site separately.
 
-**Key Value Proposition:** A single, simple platform where users can quickly check the status of any service in their area and receive alerts for issues affecting their selected providers.
+**Key value proposition:** one place to check the status of any service in your area and get alerts for the providers you actually use.
 
 ---
 
@@ -484,10 +484,10 @@ Color-coded overlay showing geographic concentration of outages over time.
 - Smart defaults based on user location and common choices
 
 **Examples:**
-- ✅ Good: "Report Outage" → Select service → Submit (2 taps + 1 selection)
-- ❌ Bad: "Report" → Service type → Provider → Subcategory → Location type → Indoor/outdoor → etc.
-- ✅ Good: Zoomed out map shows "12 outages" cluster → Tap/zoom → Individual markers with details
-- ❌ Bad: All 12 markers visible at city level causing visual clutter
+- Good: "Report Outage" → Select service → Submit (2 taps + 1 selection)
+- Bad: "Report" → Service type → Provider → Subcategory → Location type → Indoor/outdoor → etc.
+- Good: Zoomed out map shows "12 outages" cluster → Tap/zoom → Individual markers with details
+- Bad: All 12 markers visible at city level causing visual clutter
 
 ---
 
