@@ -31,6 +31,37 @@ export const SERVICE_META: Record<
   other: { label: "Other services", shortLabel: "Other", icon: "circle-help" },
 };
 
+/**
+ * What live data actually exists per service type, and what to tell someone
+ * looking at an empty map because of it.
+ *
+ * An empty map has two very different meanings — "nothing is broken" and
+ * "nothing is watching" — and the app cannot tell them apart unless it says
+ * which feeds it has. Power is well covered, internet is covered coarsely and
+ * is quiet most days, and nothing free reports cellular at all.
+ */
+export const SERVICE_COVERAGE: Record<
+  ServiceType,
+  { live: boolean; note: string }
+> = {
+  power: {
+    live: true,
+    note: "Live utility data covers roughly 90 utilities across 30 states, plus anything people report.",
+  },
+  internet: {
+    live: true,
+    note: "Live data only catches whole regions losing connectivity, which is rare — a single provider going down in one area shows up only if someone reports it.",
+  },
+  cellular: {
+    live: false,
+    note: "No free live feed reports cellular outages, so this layer shows only what people report.",
+  },
+  other: {
+    live: false,
+    note: "Water, gas and everything else is reported by people here — no free live feed covers them.",
+  },
+};
+
 export const SEVERITY_META: Record<
   Severity,
   { label: string; description: string; rank: number; token: string }

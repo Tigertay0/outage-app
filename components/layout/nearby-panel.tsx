@@ -1,7 +1,7 @@
 "use client";
 
 import { CheckCircle2, ChevronUp, CloudAlert, Loader2, Plus } from "lucide-react";
-import { SEVERITY_META, sourceLabel } from "@/lib/constants";
+import { SERVICE_COVERAGE, SERVICE_META, SEVERITY_META, sourceLabel } from "@/lib/constants";
 import { formatDistance, haversineMeters } from "@/lib/geo";
 import { locationLabel, timeAgo } from "@/lib/format";
 import { useFilters } from "@/lib/store/filters";
@@ -48,6 +48,7 @@ export function NearbyPanel({
 
   const visible = sorted.slice(0, 50);
   const active = outages.filter((o) => o.status === "active").length;
+  const serviceTypes = useFilters((s) => s.serviceTypes);
 
   /**
    * What the collapsed bar says when there is nothing to report.
@@ -56,12 +57,17 @@ export function NearbyPanel({
    * warnings that *are* in view says the opposite — the map is working, and
    * this is what it found.
    */
+  // Named when one type is filtered to, so "nothing here" cannot be mistaken
+  // for "the app found nothing at all".
+  const lone = serviceTypes.length === 1 ? serviceTypes[0] : null;
+  const kind = lone ? `${SERVICE_META[lone].shortLabel.toLowerCase()} ` : "";
+
   const summary =
     active > 0
-      ? `${active} outage${active === 1 ? "" : "s"} in view`
+      ? `${active} ${kind}outage${active === 1 ? "" : "s"} in view`
       : advisories.length > 0
-        ? `${advisories.length} weather warning${advisories.length === 1 ? "" : "s"} in view`
-        : "No outages reported nearby";
+        ? `No ${kind}outages · ${advisories.length} weather warning${advisories.length === 1 ? "" : "s"}`
+        : `No ${kind}outages reported nearby`;
 
   return (
     <div
@@ -197,6 +203,8 @@ function EmptyState({
 }) {
   const resolvedHours = useFilters((s) => s.resolvedHours);
   const setResolvedHours = useFilters((s) => s.setResolvedHours);
+  const serviceTypes = useFilters((s) => s.serviceTypes);
+  const lone = serviceTypes.length === 1 ? serviceTypes[0] : null;
 
   return (
     <div className="px-4 py-6">
@@ -208,11 +216,20 @@ function EmptyState({
           <CheckCircle2 className="h-5 w-5" />
         </span>
 
-        <p className="text-sm font-medium">No outages reported here</p>
+        <p className="text-sm font-medium">
+          {lone
+            ? `No ${SERVICE_META[lone].shortLabel.toLowerCase()} outages here`
+            : "No outages reported here"}
+        </p>
         <p className="mt-1 max-w-xs text-sm text-muted-foreground">
-          {advisories.length > 0
-            ? "Nobody has reported losing service, but conditions below make it more likely."
-            : "Either everything is working, or nobody has reported it yet."}
+          {lone
+            ? // What this layer can see matters more than reassurance: for
+              // cellular, "everything is working" would be a guess dressed up
+              // as a finding.
+              SERVICE_COVERAGE[lone].note
+            : advisories.length > 0
+              ? "Nobody has reported losing service, but conditions below make it more likely."
+              : "Either everything is working, or nobody has reported it yet."}
         </p>
 
         <Button onClick={onReport} className="mt-4">

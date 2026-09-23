@@ -1,6 +1,7 @@
 "use client";
 
-import { SERVICE_META } from "@/lib/constants";
+import { Info } from "lucide-react";
+import { SERVICE_COVERAGE, SERVICE_META } from "@/lib/constants";
 import { useFilters } from "@/lib/store/filters";
 import { SERVICE_TYPES } from "@/lib/types";
 import type { ServiceType } from "@/lib/types";
@@ -39,6 +40,61 @@ export function TypeChips({ className }: { className?: string }) {
     setServiceTypes(isOnlyOne ? [...SERVICE_TYPES] : [type]);
   }
 
+  // Only when a single type is selected: with everything on, the map is the
+  // sum of every feed and no one note describes it.
+  const lone = serviceTypes.length === 1 ? serviceTypes[0] : null;
+
+  return (
+    <div className={cn("space-y-1.5", className)}>
+      <ChipRow
+        allSelected={allSelected}
+        noneSelected={noneSelected}
+        serviceTypes={serviceTypes}
+        onPick={pick}
+        onShowAll={() => setServiceTypes([...SERVICE_TYPES])}
+      />
+
+      {lone && <CoverageNote type={lone} />}
+    </div>
+  );
+}
+
+/**
+ * What this layer can and cannot see.
+ *
+ * Without it, filtering to Cellular shows an empty map that looks identical to
+ * a broken one. The honest answer is that nothing free reports cellular, and
+ * that is worth one line of text rather than leaving someone to guess.
+ */
+function CoverageNote({ type }: { type: ServiceType }) {
+  const coverage = SERVICE_COVERAGE[type];
+
+  return (
+    <p
+      className={cn(
+        "flex items-start gap-1.5 rounded-lg border border-border/60 bg-background/85",
+        "px-2.5 py-1.5 text-[11px] leading-snug text-muted-foreground shadow-sm backdrop-blur",
+      )}
+    >
+      <Info className="mt-px h-3 w-3 shrink-0" aria-hidden />
+      <span>{coverage.note}</span>
+    </p>
+  );
+}
+
+function ChipRow({
+  allSelected,
+  noneSelected,
+  serviceTypes,
+  onPick,
+  onShowAll,
+}: {
+  allSelected: boolean;
+  noneSelected: boolean;
+  serviceTypes: ServiceType[];
+  onPick: (type: ServiceType) => void;
+  onShowAll: () => void;
+}) {
   return (
     <div
       className={cn(
@@ -46,7 +102,6 @@ export function TypeChips({ className }: { className?: string }) {
         // The scrollbar would sit across the map on desktop; the row fits
         // without one at every width we support.
         "[scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
-        className,
       )}
       role="group"
       aria-label="Filter by service type"
@@ -55,7 +110,7 @@ export function TypeChips({ className }: { className?: string }) {
         label={noneSelected ? "Show all" : "All"}
         active={allSelected}
         highlighted={noneSelected}
-        onClick={() => setServiceTypes([...SERVICE_TYPES])}
+        onClick={onShowAll}
       />
 
       {SERVICE_TYPES.map((type) => (
@@ -64,7 +119,7 @@ export function TypeChips({ className }: { className?: string }) {
           label={SERVICE_META[type].shortLabel}
           icon={<ServiceIcon type={type} className="h-3.5 w-3.5" />}
           active={!allSelected && serviceTypes.includes(type)}
-          onClick={() => pick(type)}
+          onClick={() => onPick(type)}
         />
       ))}
     </div>
