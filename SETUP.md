@@ -253,12 +253,44 @@ expect an outage, not evidence of one, and filing it as an outage would put
 events on the map nobody has lost service to. The map shows them as a separate,
 toggleable layer.
 
+**ODIN** (Outage Data Initiative Nationwide, DOE / Oak Ridge National
+Laboratory) — free, no key, the actual power outages. Utilities publish
+near-real-time customer counts by county in a common format; about 90 of them
+across 30-odd states were reporting when this was added, refreshed hourly. The
+bulk export is fetched rather than the paged endpoint, because a sync resolves
+whatever is missing from the snapshot and a truncated page would wrongly close
+live outages. Rows are aggregated per utility per county, and single-customer
+incidents are dropped (see `ODIN_MIN_CUSTOMERS`) — at county granularity one
+household is its own service line, not something a neighbour can confirm.
+
+**IODA** (Internet Outage Detection and Analysis, Georgia Tech) — free, no key,
+internet rather than power. It compares BGP routing, active probing and Google
+traffic against each region's own history, so it detects a *region* losing
+connectivity and says nothing about one ISP on one street. Two consequences
+worth knowing before you judge the layer broken:
+
+- **It is usually empty in the US.** A dense, redundant network rarely drops a
+  whole state. Roughly two qualifying events a day nationwide, and quiet weeks
+  are normal.
+- **Its "critical" is not our "outage".** The level is relative to that region's
+  own baseline and fires on drops far too small to matter — in a sample month of
+  US alerts, nine sat at 80–99% of normal, including Indiana at 98.8%. Only
+  alerts at or below `MAX_NORMAL_RATIO` (50% of normal) are published; the
+  remaining 63 of 75 in that sample were genuine collapses, mostly under 20%.
+
+Region-level rows are placed at the state centroid in
+[`lib/ingest/us-regions.ts`](lib/ingest/us-regions.ts), since IODA carries no
+geometry of its own.
+
 ### What it does not pull
 
-There is no free live feed of US power outages. PowerOutage.us aggregates every
-utility and charges for it; the DOE's EAGLE-I is bulk historical. Individual
-utility outage maps have undocumented JSON endpoints, but scraping them is
-fragile and generally against their terms.
+Street-level detail, and the utilities that stay out of ODIN. PowerOutage.us
+aggregates every US utility and charges for it; the DOE's EAGLE-I is bulk
+historical. Individual utility outage maps have undocumented JSON endpoints, but
+scraping them is fragile and generally against their terms. For internet, the
+per-ISP "is Comcast down in my neighbourhood" signal is sold commercially
+(Downdetector and similar) and has no free equivalent — IODA answers a coarser
+question, and crowdsourced reports cover the rest.
 
 `lib/ingest/source.ts` defines the interface a feed implements, and
 `lib/ingest/run.ts` holds the registry — adding a paid source means writing an
@@ -267,9 +299,10 @@ adapter and listing it, with nothing above the data layer changing. An
 on `(source_name, source_id)`, and rows the feed stops reporting are resolved
 automatically.
 
-IODA (Georgia Tech) was evaluated and rejected: it is free and genuinely good,
-but it detects country-scale internet blackouts. It had zero US alerts over a
-24-hour sample.
+`lib/ingest/run.ts` runs every source on the same schedule, and one failing feed
+never stops the others: a source that throws is reported in the response and its
+existing rows are left alone, rather than being resolved as though the outages
+had ended.
 
 ---
 

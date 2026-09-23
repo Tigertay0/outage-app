@@ -12,7 +12,11 @@ import {
   ThumbsUp,
   Users,
 } from "lucide-react";
-import { SEVERITY_META, VERIFICATION_THRESHOLD, sourceLabel } from "@/lib/constants";
+import {
+  SEVERITY_META,
+  VERIFICATION_THRESHOLD,
+  sourceAttribution,
+} from "@/lib/constants";
 import { clockTime, dayAndTime, locationLabel, outageDuration, pluralize, timeAgo } from "@/lib/format";
 import {
   useAddComment,
@@ -180,8 +184,7 @@ export function OutageDetailSheet({
 
               {outage.origin === "official" && (
                 <p className="py-2 text-sm text-muted-foreground">
-                  Reported by the utility via {sourceLabel(outage.sourceName)}, not by a
-                  person. Confirmations do not apply.
+                  {sourceAttribution(outage.sourceName)}
                 </p>
               )}
 

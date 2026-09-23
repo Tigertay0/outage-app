@@ -25,7 +25,10 @@ interface FilterState {
   showAdvisories: boolean;
 
   toggleServiceType: (type: ServiceType) => void;
+  /** Replace the whole selection — the map's one-tap type chips. */
+  setServiceTypes: (types: ServiceType[]) => void;
   toggleSeverity: (severity: Severity) => void;
+  setSeverities: (severities: Severity[]) => void;
   toggleProvider: (id: string) => void;
   setProviders: (ids: string[]) => void;
   setResolvedHours: (hours: number) => void;
@@ -57,8 +60,12 @@ export const useFilters = create<FilterState>()(
       toggleServiceType: (type) =>
         set((s) => ({ serviceTypes: toggle(s.serviceTypes, type) })),
 
+      setServiceTypes: (types) => set({ serviceTypes: types }),
+
       toggleSeverity: (severity) =>
         set((s) => ({ severities: toggle(s.severities, severity) })),
+
+      setSeverities: (severities) => set({ severities }),
 
       toggleProvider: (id) =>
         set((s) => ({ providerIds: toggle(s.providerIds, id) })),
@@ -86,9 +93,30 @@ export const useFilters = create<FilterState>()(
           providerIds: partial.providerIds ?? s.providerIds,
         })),
     }),
-    // Bumped when showAdvisories was added; a v1 blob rehydrates with the
-    // default rather than an undefined toggle.
-    { name: "outage-filters", version: 2 },
+    {
+      // Bumped when showAdvisories was added; a v1 blob rehydrates with the
+      // default rather than an undefined toggle.
+      name: "outage-filters",
+      version: 2,
+
+      /**
+       * "Nothing selected" is a legitimate thing to do in the filter sheet for
+       * a moment, and a terrible thing to come back to a week later: the map
+       * loads empty with no indication that a saved filter is the reason. It
+       * is cleared on rehydrate, so a stored blank selection cannot outlive the
+       * session that made it. Within a session the state is still allowed, and
+       * the map says so — see TypeChips.
+       */
+      onRehydrateStorage: () => (state) => {
+        if (!state) return;
+        if (state.serviceTypes.length === 0) {
+          state.setServiceTypes([...SERVICE_TYPES]);
+        }
+        if (state.severities.length === 0) {
+          state.setSeverities([...SEVERITIES]);
+        }
+      },
+    },
   ),
 );
 

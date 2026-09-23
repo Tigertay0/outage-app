@@ -3,9 +3,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Map, {
   GeolocateControl,
+  Layer,
   Marker,
   NavigationControl,
   ScaleControl,
+  Source,
   type MapRef,
   type ViewStateChangeEvent,
 } from "react-map-gl/maplibre";
@@ -13,6 +15,7 @@ import { DEFAULT_VIEW, HOME_BOUNDS, MARKER_ZOOM } from "@/lib/constants";
 import { useNow } from "@/lib/hooks/use-now";
 import type { Advisory, BoundingBox, Outage } from "@/lib/types";
 import { FALLBACK_STYLE, basemapUrl } from "./basemap";
+import { MARKERS_MIN_ZOOM, heatLayer, outagesToGeoJSON } from "./heat-layer";
 import { AdvisoryMarker, ClusterMarker, OutageMarker } from "./markers";
 import { useClusters, type ClusterProperties, type PointProperties } from "./use-clusters";
 
@@ -79,6 +82,13 @@ export function OutageMap({
   const [styleFailed, setStyleFailed] = useState(false);
 
   const { clusters, expansionZoom, leaves } = useClusters(outages, viewport);
+
+  // Which of the two representations is live. Before the first viewport sync
+  // the map is at DEFAULT_VIEW, which is country zoom, so heat is the correct
+  // assumption rather than a flash of pins.
+  const showMarkers = (viewport?.zoom ?? DEFAULT_VIEW.zoom) >= MARKERS_MIN_ZOOM;
+
+  const heatData = useMemo(() => outagesToGeoJSON(outages), [outages]);
 
   /**
    * Reveal a cluster's contents.
@@ -255,9 +265,21 @@ export function OutageMap({
       />
       <ScaleControl position="bottom-left" maxWidth={90} unit="imperial" />
 
+      {/* Density first, underneath everything: at country zoom this is the whole
+          picture, and by the time markers appear it has faded to nothing. */}
+      {!picking && (
+        <Source id="outage-heat-source" type="geojson" data={heatData}>
+          <Layer {...heatLayer} />
+        </Source>
+      )}
+
       {/* Advisories render first so outage markers sit above them: a report of
-          actual lost service outranks a forecast of possible lost service. */}
+          actual lost service outranks a forecast of possible lost service.
+          They also follow the same zoom gate: scattered over the heat map at
+          country zoom they read as the louder layer, which inverts what they
+          are — weather that might cause an outage, not one that happened. */}
       {!picking &&
+        showMarkers &&
         advisories.map((advisory) => (
           <Marker
             key={`advisory-${advisory.id}`}
@@ -276,6 +298,7 @@ export function OutageMap({
         ))}
 
       {!picking &&
+        showMarkers &&
         clusters.map((feature) => {
           const [longitude, latitude] = feature.geometry.coordinates;
           const props = feature.properties;
