@@ -282,6 +282,29 @@ Region-level rows are placed at the state centroid in
 [`lib/ingest/us-regions.ts`](lib/ingest/us-regions.ts), since IODA carries no
 geometry of its own.
 
+**Cloudflare Radar** — internet again, and the only feed here that says *why*.
+Cloudflare publishes the outages it observes as curated annotations carrying a
+cause: cable cut, power outage, government action, maintenance. It complements
+IODA rather than replacing it — IODA infers an outage from measurements within
+minutes, Radar describes it once a human has characterised it.
+
+This one needs a free token, and is skipped entirely without it:
+
+1. Go to [dash.cloudflare.com/profile/api-tokens](https://dash.cloudflare.com/profile/api-tokens).
+2. **Create Token → Create Custom Token.**
+3. Permissions: **Account → Radar → Read**. Nothing else is needed.
+4. Put it in `.env.local` and in the host's environment:
+
+   ```bash
+   CLOUDFLARE_RADAR_TOKEN=...
+   ```
+
+Radar names places rather than giving coordinates, so a US annotation is drawn
+at the first state its scope or description names, and a genuinely nationwide
+event is drawn at the centre of the country with a description that says so.
+Only annotations with no end date are published: Radar closes one when the
+outage recovers, which is what lets the sync resolve the row automatically.
+
 ### What it does not pull
 
 Street-level detail, and the utilities that stay out of ODIN. PowerOutage.us
