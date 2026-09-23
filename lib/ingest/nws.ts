@@ -1,5 +1,6 @@
 import "server-only";
 import type { Severity } from "@/lib/types";
+import { FETCH_TIMEOUT_MS } from "./source";
 import type { IngestedAdvisory, OutageSource, SourceResult } from "./source";
 
 /**
@@ -189,7 +190,11 @@ async function zoneCentroid(
   budget.left -= 1;
 
   try {
-    const response = await fetch(url, { headers: headers(), cache: "no-store" });
+    const response = await fetch(url, {
+      headers: headers(),
+      cache: "no-store",
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+    });
     if (!response.ok) {
       cache.set(url, null);
       return null;
@@ -219,6 +224,7 @@ export class NwsSource implements OutageSource {
     const response = await fetch(`${API}?status=actual&message_type=alert`, {
       headers: headers(),
       cache: "no-store",
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
     });
 
     if (!response.ok) {

@@ -1,4 +1,5 @@
 import "server-only";
+import { FETCH_TIMEOUT_MS } from "./source";
 import type { IngestedOutage, OutageSource, SourceResult } from "./source";
 
 /**
@@ -204,6 +205,7 @@ export class OdinSource implements OutageSource {
     const response = await fetch(EXPORT_URL, {
       headers: { Accept: "application/json" },
       cache: "no-store",
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
     });
 
     if (!response.ok) {
