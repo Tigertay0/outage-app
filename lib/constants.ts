@@ -127,6 +127,11 @@ export const SOURCE_LABELS: Record<string, SourceMeta> = {
     short: "IODA",
     provenance: "detected",
   },
+  "cloudflare-radar": {
+    name: "Cloudflare Radar",
+    short: "Radar",
+    provenance: "detected",
+  },
 };
 
 export function sourceLabel(sourceName: string | null, form: "name" | "short" = "name"): string {

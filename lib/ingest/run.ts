@@ -2,6 +2,7 @@ import "server-only";
 import { isSupabaseConfigured } from "@/lib/data";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import type { Json } from "@/lib/supabase/database.types";
+import { CloudflareRadarSource } from "./cloudflare-radar";
 import { IodaSource } from "./ioda";
 import { NwsSource } from "./nws";
 import { OdinSource } from "./odin";
@@ -24,6 +25,7 @@ const SOURCES: OutageSource[] = [
   new NwsSource(),
   new OdinSource(),
   new IodaSource(),
+  new CloudflareRadarSource(),
 ];
 
 export interface SourceReport {
