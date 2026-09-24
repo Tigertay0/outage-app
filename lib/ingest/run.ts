@@ -87,26 +87,34 @@ async function syncOutages(
   sourceName: string,
   outages: IngestedOutage[],
 ): Promise<{ upserted: number; resolved: number }> {
-  const rows = outages
-    .filter((o) => o.active)
-    .map((o) => ({
-      source_id: o.sourceId,
-      service_type: o.serviceType,
-      severity: o.severity,
-      latitude: o.latitude,
-      longitude: o.longitude,
-      city: o.city,
-      state: o.state,
-      description: o.description,
-      estimated_restoration: o.estimatedRestoration,
-      reported_at: o.reportedAt,
-      metadata: {
-        utility_name: o.utilityName,
-        customers_affected: o.customersAffected,
-        // Without a feed start time, reported_at is only when we first saw it.
-        start_known: o.reportedAt !== null,
-      },
-    }));
+  // The SQL function upserts in one statement, so a repeated source_id or a row
+  // with no usable coordinates would abort the whole snapshot. Keep the first
+  // row per id and drop rows that cannot be placed on the map.
+  const unique = new Map<string, IngestedOutage>();
+  for (const o of outages) {
+    if (!o.active || unique.has(o.sourceId)) continue;
+    if (!Number.isFinite(o.latitude) || !Number.isFinite(o.longitude)) continue;
+    unique.set(o.sourceId, o);
+  }
+
+  const rows = [...unique.values()].map((o) => ({
+    source_id: o.sourceId,
+    service_type: o.serviceType,
+    severity: o.severity,
+    latitude: o.latitude,
+    longitude: o.longitude,
+    city: o.city,
+    state: o.state,
+    description: o.description,
+    estimated_restoration: o.estimatedRestoration,
+    reported_at: o.reportedAt,
+    metadata: {
+      utility_name: o.utilityName,
+      customers_affected: o.customersAffected,
+      // Without a feed start time, reported_at is only when we first saw it.
+      start_known: o.reportedAt !== null,
+    },
+  }));
 
   const { data, error } = await client.rpc("sync_official_outages", {
     feed_source: sourceName,
@@ -116,7 +124,8 @@ async function syncOutages(
   if (error) throw new Error(`sync_official_outages: ${error.message}`);
 
   const result = (data ?? [])[0];
-  return { upserted: result?.upserted ?? 0, resolved: result?.resolved ?? 0 };
+  if (!result) throw new Error("sync_official_outages returned no result row");
+  return { upserted: result.upserted, resolved: result.resolved };
 }
 
 export async function runIngest(): Promise<IngestReport> {
@@ -176,7 +185,14 @@ export async function runIngest(): Promise<IngestReport> {
     }
   }
 
-  const { data: pruned } = await client.rpc("prune_expired_advisories");
+  // Sources are already written by now, so a failed prune is logged rather than
+  // thrown: it must not turn a successful ingest into a failed run.
+  const { data: pruned, error: pruneError } = await client.rpc(
+    "prune_expired_advisories",
+  );
+  if (pruneError) {
+    console.error("[ingest] prune_expired_advisories failed:", pruneError.message);
+  }
 
   return {
     ran: new Date().toISOString(),
@@ -242,20 +258,23 @@ export async function refreshIfStale(): Promise<void> {
     return;
   }
 
-  // A failing run must not be retried on every single request.
+  // A failing run must not be retried on every single request. Claimed before
+  // any await so concurrent readers cannot all pass the check together.
   const lastAttempt = globalIngest.__ingestLastAttempt ?? 0;
   if (Date.now() - lastAttempt < STALE_AFTER_MS) return;
-
   if (globalIngest.__ingestInFlight) return;
+  globalIngest.__ingestLastAttempt = Date.now();
 
   try {
     const client = createServiceRoleClient();
-    const { data } = await client
+    const { data, error } = await client
       .from("advisories")
       .select("updated_at")
       .order("updated_at", { ascending: false })
       .limit(1)
       .maybeSingle();
+
+    if (error) throw new Error(`freshness check: ${error.message}`);
 
     const newest = (data as { updated_at: string } | null)?.updated_at;
     const fresh =
@@ -265,14 +284,15 @@ export async function refreshIfStale(): Promise<void> {
 
     if (fresh) return;
 
-    globalIngest.__ingestLastAttempt = Date.now();
-    globalIngest.__ingestInFlight = runIngest();
-
-    await globalIngest.__ingestInFlight;
+    const run = runIngest();
+    globalIngest.__ingestInFlight = run;
+    try {
+      await run;
+    } finally {
+      globalIngest.__ingestInFlight = null;
+    }
   } catch (error) {
     console.error("[ingest] background refresh failed:", error);
-  } finally {
-    globalIngest.__ingestInFlight = null;
   }
 }
 

@@ -57,6 +57,17 @@ interface RadarOutage {
 }
 
 /**
+ * Word-boundary patterns, longest name first so "West Virginia" is tried before
+ * "Virginia". Built once: the set of states never changes.
+ */
+const STATE_PATTERNS = Object.keys(US_STATE_CENTROIDS)
+  .sort((a, b) => b.length - a.length)
+  .map((state) => ({
+    state,
+    pattern: new RegExp(`\\b${state.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i"),
+  }));
+
+/**
  * Where to draw it.
  *
  * Radar names places, not coordinates. A US annotation usually names the
@@ -68,14 +79,10 @@ interface RadarOutage {
 function placeFor(row: RadarOutage): { lat: number; lng: number; state: string | null } {
   const haystack = `${row.scope ?? ""} ${row.description ?? ""}`;
 
-  for (const [state, centroid] of Object.entries(US_STATE_CENTROIDS)) {
-    // Word-boundary match: "Washington" must not fire on "Washington, D.C." in
-    // a sentence about somewhere else, and short names must not match inside
-    // longer words.
-    const pattern = new RegExp(`\\b${state.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i");
-    if (pattern.test(haystack)) {
-      return { lat: centroid.lat, lng: centroid.lng, state };
-    }
+  const match = STATE_PATTERNS.find(({ pattern }) => pattern.test(haystack));
+  if (match) {
+    const centroid = US_STATE_CENTROIDS[match.state];
+    return { lat: centroid.lat, lng: centroid.lng, state: match.state };
   }
 
   // Geographic centre of the contiguous US, matching DEFAULT_VIEW.
@@ -173,10 +180,15 @@ export class CloudflareRadarSource implements OutageSource {
       throw new Error(`Cloudflare Radar: ${message}`);
     }
 
-    const annotations = body.result?.annotations ?? [];
+    // A missing array must not read as "no outages": the sync would resolve
+    // every active Radar row.
+    const annotations = body.result?.annotations;
+    if (!Array.isArray(annotations)) {
+      throw new Error("Cloudflare Radar: unexpected response shape");
+    }
     const cutoff = Date.now() - MAX_OPEN_DAYS * 24 * 60 * 60 * 1000;
 
-    const outages: IngestedOutage[] = [];
+    const outages = new Map<string, IngestedOutage>();
 
     for (const row of annotations) {
       // Closed annotations are history, and this map is about now.
@@ -189,8 +201,11 @@ export class CloudflareRadarSource implements OutageSource {
       const place = placeFor(row);
       const id = row.id ?? `${row.startDate}:${(row.asns ?? []).join("-")}`;
 
-      outages.push({
-        sourceId: String(id),
+      const sourceId = String(id);
+      if (outages.has(sourceId)) continue;
+
+      outages.set(sourceId, {
+        sourceId,
         providerSlug: null,
         utilityName: row.asnsDetails?.[0]?.name ?? null,
         customersAffected: null,
@@ -207,6 +222,6 @@ export class CloudflareRadarSource implements OutageSource {
       });
     }
 
-    return { outages };
+    return { outages: [...outages.values()] };
   }
 }
