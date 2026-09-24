@@ -150,7 +150,7 @@ export function OutageMarker({
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-foreground",
         "focus-visible:ring-offset-1 focus-visible:ring-offset-background",
       )}
-      aria-label={`${SEVERITY_META[severity].label} — ${serviceType}${
+      aria-label={`${SEVERITY_META[severity].label}: ${serviceType}${
         solid ? "" : ", unconfirmed"
       }`}
     >
@@ -214,7 +214,7 @@ export function AdvisoryMarker({
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-foreground",
         "focus-visible:ring-offset-1 focus-visible:ring-offset-background",
       )}
-      aria-label={`Weather advisory — ${SEVERITY_META[severity].label}`}
+      aria-label={`Weather advisory: ${SEVERITY_META[severity].label}`}
     >
       <span
         aria-hidden
@@ -282,7 +282,7 @@ export function MapLegend({ className }: { className?: string }) {
                 "linear-gradient(90deg, rgba(250,204,21,0.5), rgba(249,115,22,0.8), rgba(220,38,38,0.95))",
             }}
           />
-          <span className="text-muted-foreground">Density — zoom in for detail</span>
+          <span className="text-muted-foreground">Density. Zoom in for detail</span>
         </li>
       </ul>
     </div>

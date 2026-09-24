@@ -9,7 +9,7 @@ npm run dev
 
 The app runs. No accounts, no API keys, no database.
 
-That is deliberate. `getRepository()` in [lib/data/index.ts](lib/data/index.ts)
+`getRepository()` in [lib/data/index.ts](lib/data/index.ts)
 returns a seeded in-process store when Supabase is not configured, and the map
 uses MapLibre with OpenFreeMap tiles, which need no token. Every feature works
 against demo data, and a banner says so.
@@ -48,26 +48,26 @@ without it.
 
 **SQL Editor → New Query**, then paste and run each file:
 
-1. [`prisma/migrations/001_initial_schema.sql`](prisma/migrations/001_initial_schema.sql)
-   — tables, indexes, RLS policies, triggers, seed providers.
-2. [`prisma/migrations/002_search_and_fixes.sql`](prisma/migrations/002_search_and_fixes.sql)
-   — the `search_outages` RPC the map actually calls, provider slugs, resolution
-   votes, and a fix so withdrawing a confirmation decrements the count.
-3. [`prisma/migrations/003_align_providers.sql`](prisma/migrations/003_align_providers.sql)
-   — makes the database's provider list match `lib/data/seed.ts`.
-4. [`prisma/migrations/004_preference_slugs.sql`](prisma/migrations/004_preference_slugs.sql)
-   — `saved_providers` holds slugs, not UUIDs.
-5. [`prisma/migrations/005_rate_limits.sql`](prisma/migrations/005_rate_limits.sql)
-   — rate limiting that holds across serverless instances.
-6. [`prisma/migrations/006_official_sources.sql`](prisma/migrations/006_official_sources.sql)
-   — outage provenance and the weather-advisory layer.
-7. [`prisma/migrations/007_push_subscriptions.sql`](prisma/migrations/007_push_subscriptions.sql)
-   — push subscriptions stored and matched in Postgres.
-8. [`prisma/migrations/008_trigger_privileges_and_guards.sql`](prisma/migrations/008_trigger_privileges_and_guards.sql)
-   — confirmations and resolution votes from other users actually update the
-   outage, server-owned outage columns are locked, rate limits are race-free.
-9. [`prisma/migrations/009_official_outage_sync.sql`](prisma/migrations/009_official_outage_sync.sql)
-   — atomic snapshot sync for official feeds, plus the utility's own name and
+1. [`prisma/migrations/001_initial_schema.sql`](prisma/migrations/001_initial_schema.sql):
+   tables, indexes, RLS policies, triggers, seed providers.
+2. [`prisma/migrations/002_search_and_fixes.sql`](prisma/migrations/002_search_and_fixes.sql):
+   the `search_outages` RPC the map calls, provider slugs, resolution votes, and
+   a fix so withdrawing a confirmation decrements the count.
+3. [`prisma/migrations/003_align_providers.sql`](prisma/migrations/003_align_providers.sql):
+   makes the database's provider list match `lib/data/seed.ts`.
+4. [`prisma/migrations/004_preference_slugs.sql`](prisma/migrations/004_preference_slugs.sql):
+   `saved_providers` holds slugs, not UUIDs.
+5. [`prisma/migrations/005_rate_limits.sql`](prisma/migrations/005_rate_limits.sql):
+   rate limiting that holds across serverless instances.
+6. [`prisma/migrations/006_official_sources.sql`](prisma/migrations/006_official_sources.sql):
+   outage provenance and the weather-advisory layer.
+7. [`prisma/migrations/007_push_subscriptions.sql`](prisma/migrations/007_push_subscriptions.sql):
+   push subscriptions stored and matched in Postgres.
+8. [`prisma/migrations/008_trigger_privileges_and_guards.sql`](prisma/migrations/008_trigger_privileges_and_guards.sql):
+   confirmations and resolution votes from other users update the outage,
+   server-owned outage columns are locked, and rate limits are race-free.
+9. [`prisma/migrations/009_official_outage_sync.sql`](prisma/migrations/009_official_outage_sync.sql):
+   atomic snapshot sync for official feeds, plus the utility's own name and
    customer count in search results.
 
 All nine are idempotent, so re-running them is safe.
@@ -76,7 +76,7 @@ All nine are idempotent, so re-running them is safe.
 
 **Authentication → Sign In / Providers → Anonymous sign-ins → on.**
 
-This is not optional. `outages.reported_by` is a UUID with a foreign key to
+This step is required. `outages.reported_by` is a UUID with a foreign key to
 `auth.users`, and every RLS policy tests `auth.role() = 'authenticated'` and
 `auth.uid()`. A visitor without an account needs a real auth row to satisfy any
 of that, so `lib/identity.ts` signs guests in anonymously. Without this,
@@ -87,14 +87,14 @@ reports and confirmations attached to them.
 
 **Also turn CAPTCHA off** under **Authentication → Attack Protection**, if it is
 on. The sign-in happens server-side in a Route Handler, where there is no
-browser to solve a challenge — CAPTCHA and anonymous guests cannot both be
+browser to solve a challenge, so CAPTCHA and anonymous guests cannot both be
 enabled with this design. The error is
 `captcha protection: request disallowed (no captcha_token found)`.
 
-That does remove Supabase's own defence against scripted sign-up floods, which
-is why migration 005 adds a per-client-address limit in Postgres on top of the
-per-identity one — a caller who can mint identities at will is still bounded by
-where they are calling from. Client addresses are hashed before they are stored;
+That removes Supabase's own defence against scripted sign-up floods. Migration
+005 therefore adds a per-client-address limit in Postgres on top of the
+per-identity one, so a caller who can mint identities at will is still bounded
+by where they are calling from. Client addresses are hashed before they are stored;
 set `RATE_LIMIT_SALT` to something private so those hashes are not guessable.
 
 ### 5. Configure SMTP before anyone else signs up
@@ -103,22 +103,21 @@ set `RATE_LIMIT_SALT` to something private so those hashes are not guessable.
 
 Accounts are created by confirming an email address, so every signup depends on
 Supabase being able to send one. The built-in sender exists for development and
-is capped at a couple of messages per hour across the whole project — past that,
+is capped at a couple of messages per hour across the whole project. Past that,
 signups fail with:
 
 ```
 email rate limit exceeded
 ```
 
-The app surfaces that message rather than swallowing it, but there is nothing it
-can do about the cause. Point the project at your own SMTP provider (Resend,
+The app shows that message, but it cannot fix the cause. Point the project at your own SMTP provider (Resend,
 Postmark, SES, anything) before real users arrive.
 
 **Also set the redirect allow list** under **Authentication → URL Configuration**
 so confirmation links come back to the app: add your deployed origin, and
 `http://localhost:3000` for development. Links land on
 [`/auth/callback`](app/auth/callback/route.ts), which exchanges the code for a
-session and redirects to the map either way — a bad or expired link produces a
+session and redirects to the map either way. A bad or expired link produces a
 message, not an error page.
 
 If you would rather skip email entirely while testing, turn on
@@ -149,10 +148,9 @@ placeholder.
 npx supabase gen types typescript --project-id YOUR_PROJECT_ID > lib/supabase/database.types.ts
 ```
 
-Note that every table needs a `Relationships` key and the schema needs
-`CompositeTypes` for supabase-js to type queries at all — without them the
-client silently falls back to untyped results and `rpc()` calls stop being
-checked. The generator emits both; a hand-written file must not omit them.
+Every table needs a `Relationships` key and the schema needs `CompositeTypes`
+for supabase-js to type queries at all. Without them the client falls back to
+untyped results and `rpc()` calls stop being checked. The generator emits both; a hand-written file must not omit them.
 
 ---
 
@@ -197,26 +195,26 @@ The service worker only registers in production builds, so test with
 
 ## Public-data ingestion
 
-The map is not only crowdsourced: `/api/ingest` polls public feeds and writes
-what they return.
+Besides crowdsourced reports, `/api/ingest` polls public feeds and writes what
+they return.
 
 ```bash
 CRON_SECRET=$(openssl rand -base64 32)
 ```
 
-Put that in `.env.local` and in the host's environment. It is required — the
-route refuses to run without it rather than defaulting to open, because it
+Put that in `.env.local` and in the host's environment. It is required. The
+route refuses to run without it instead of defaulting to open, because it
 writes with the service-role key. `SUPABASE_SERVICE_ROLE_KEY` must also be set,
 since ingested rows have no `reported_by` and every RLS write policy is
 expressed in terms of `auth.uid()`.
 
 On Vercel, [`vercel.json`](vercel.json) schedules it and the platform sends the
 secret automatically. The schedule is **daily**, because the Hobby plan rejects
-anything more frequent — a deployment with `*/15 * * * *` fails to build. Daily
-is useless on its own for warnings that expire in hours, so `/api/advisories`
-also kicks off a run in the background whenever the data it is about to serve is
-more than twenty minutes old. Real visitors therefore keep the layer fresh, and
-the cron is only a floor.
+anything more frequent, so a deployment with `*/15 * * * *` fails to build.
+Daily is too slow for warnings that expire in hours, so `/api/advisories`
+also starts a background run whenever the data it is about to serve is more
+than twenty minutes old. Visitors keep the layer fresh, and the cron is only a
+floor.
 
 On a paid plan, change the schedule to `*/15 * * * *`; the lazy path then
 almost never fires.
@@ -239,22 +237,21 @@ configured while writing nothing.
 
 ### What it currently pulls
 
-**National Weather Service** — free, no key, good US coverage. Filtered to the
+**National Weather Service**: free, no key, good US coverage. Filtered to the
 event types that take out power, internet or phones: wind, ice, thunderstorm,
-tornado, hurricane, fire, and flooding. Flooding is included in full rather than
-flash events alone, because substations and street cabinets sit at grade — and
-on a quiet weather day flood warnings are often the only relevant US alerts
-active at all. That keeps roughly 25–35 of the 215–245 alerts live at any
+tornado, hurricane, fire, and flooding. All flooding is included, not only
+flash events, because substations and street cabinets sit at grade, and on a
+quiet weather day flood warnings are often the only relevant US alerts active. That keeps roughly 25–35 of the 215–245 alerts live at any
 moment. Alerts carrying a polygon are placed directly; the rest name NWS
 forecast zones, which are resolved to a centroid and cached.
 
-These land in `advisories`, **not** `outages`. A storm warning is a reason to
+These go into `advisories`, not `outages`. A storm warning is a reason to
 expect an outage, not evidence of one, and filing it as an outage would put
-events on the map nobody has lost service to. The map shows them as a separate,
-toggleable layer.
+events on the map where nobody has lost service. The map shows them as a
+separate, toggleable layer.
 
 **ODIN** (Outage Data Initiative Nationwide, DOE / Oak Ridge National
-Laboratory) — free, no key, the actual power outages. Utilities publish
+Laboratory): free, no key, real power outages. Utilities publish
 near-real-time customer counts by county in a common format; about 90 of them
 across 30-odd states were reporting when this was added, refreshed hourly. The
 bulk export is fetched rather than the paged endpoint, because a sync resolves
@@ -263,17 +260,17 @@ live outages. Rows are aggregated per utility per county, and single-customer
 incidents are dropped (see `ODIN_MIN_CUSTOMERS`) — at county granularity one
 household is its own service line, not something a neighbour can confirm.
 
-**IODA** (Internet Outage Detection and Analysis, Georgia Tech) — free, no key,
+**IODA** (Internet Outage Detection and Analysis, Georgia Tech): free, no key,
 internet rather than power. It compares BGP routing, active probing and Google
 traffic against each region's own history, so it detects a *region* losing
-connectivity and says nothing about one ISP on one street. Two consequences
-worth knowing before you judge the layer broken:
+connectivity and says nothing about one ISP on one street. Two consequences to
+know before you judge the layer broken:
 
 - **It is usually empty in the US.** A dense, redundant network rarely drops a
   whole state. Roughly two qualifying events a day nationwide, and quiet weeks
   are normal.
 - **Its "critical" is not our "outage".** The level is relative to that region's
-  own baseline and fires on drops far too small to matter — in a sample month of
+  own baseline and fires on drops far too small to matter. In a sample month of
   US alerts, nine sat at 80–99% of normal, including Indiana at 98.8%. Only
   alerts at or below `MAX_NORMAL_RATIO` (50% of normal) are published; the
   remaining 63 of 75 in that sample were genuine collapses, mostly under 20%.
@@ -282,11 +279,11 @@ Region-level rows are placed at the state centroid in
 [`lib/ingest/us-regions.ts`](lib/ingest/us-regions.ts), since IODA carries no
 geometry of its own.
 
-**Cloudflare Radar** — internet again, and the only feed here that says *why*.
-Cloudflare publishes the outages it observes as curated annotations carrying a
-cause: cable cut, power outage, government action, maintenance. It complements
-IODA rather than replacing it — IODA infers an outage from measurements within
-minutes, Radar describes it once a human has characterised it.
+**Cloudflare Radar**: internet again, and the only feed here that gives a
+cause. Cloudflare publishes the outages it observes as curated annotations
+carrying a cause: cable cut, power outage, government action, maintenance. It
+complements IODA. IODA infers an outage from measurements within minutes, and
+Radar describes it once a human has characterised it.
 
 This one needs a free token, and is skipped entirely without it:
 
@@ -299,9 +296,9 @@ This one needs a free token, and is skipped entirely without it:
    CLOUDFLARE_RADAR_TOKEN=...
    ```
 
-Radar names places rather than giving coordinates, so a US annotation is drawn
-at the first state its scope or description names, and a genuinely nationwide
-event is drawn at the centre of the country with a description that says so.
+Radar names places instead of giving coordinates, so a US annotation is drawn
+at the first state its scope or description names, and a nationwide event is
+drawn at the centre of the country with a description that says so.
 Only annotations with no end date are published: Radar closes one when the
 outage recovers, which is what lets the sync resolve the row automatically.
 
@@ -312,7 +309,7 @@ aggregates every US utility and charges for it; the DOE's EAGLE-I is bulk
 historical. Individual utility outage maps have undocumented JSON endpoints, but
 scraping them is fragile and generally against their terms. For internet, the
 per-ISP "is Comcast down in my neighbourhood" signal is sold commercially
-(Downdetector and similar) and has no free equivalent — IODA answers a coarser
+(Downdetector and similar) and has no free equivalent. IODA answers a coarser
 question, and crowdsourced reports cover the rest.
 
 `lib/ingest/source.ts` defines the interface a feed implements, and
