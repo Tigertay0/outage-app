@@ -50,7 +50,7 @@ export const SERVICE_COVERAGE: Record<
   },
   internet: {
     live: true,
-    note: "Live data only catches whole regions losing connectivity, which is rare — a single provider going down in one area shows up only if someone reports it.",
+    note: "Live data only catches whole regions losing connectivity, which is rare. A single provider going down in one area shows up only if someone reports it.",
   },
   cellular: {
     live: false,
@@ -58,7 +58,7 @@ export const SERVICE_COVERAGE: Record<
   },
   other: {
     live: false,
-    note: "Water, gas and everything else is reported by people here — no free live feed covers them.",
+    note: "Water, gas and everything else is reported by people here. No free live feed covers them.",
   },
 };
 
