@@ -127,7 +127,12 @@ export class IodaSource implements OutageSource {
     }
 
     const body = (await response.json()) as { data?: IodaAlert[] };
-    const alerts = body.data ?? [];
+    // A missing array must not read as "no outages": the sync would resolve
+    // every active IODA row.
+    if (!Array.isArray(body.data)) {
+      throw new Error("IODA: unexpected response shape");
+    }
+    const alerts = body.data;
 
     // Newest alert per region per datasource. A region is only reported as out
     // while its latest reading still says so, which is what makes the snapshot
@@ -153,7 +158,7 @@ export class IodaSource implements OutageSource {
       // IODA also reports an "Unknown Region in United States" bucket, which has
       // no location to draw and is skipped along with any name we lack.
       const state = alert.entity.name;
-      if (!(state in US_STATE_CENTROIDS)) continue;
+      if (!Object.hasOwn(US_STATE_CENTROIDS, state)) continue;
 
       const ratio = normalRatio(alert);
       if (ratio === null || ratio > MAX_NORMAL_RATIO) continue;
