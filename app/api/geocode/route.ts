@@ -1,8 +1,7 @@
 import type { NextRequest } from "next/server";
 import { badRequest, ok, serverError, tooMany } from "@/lib/api";
-import { addressBucket } from "@/lib/client-address";
 import { getIdentity } from "@/lib/identity";
-import { LIMITS, rateLimit } from "@/lib/rate-limit";
+import { LIMITS, consumeAddressLimit, rateLimit } from "@/lib/rate-limit";
 import type { GeocodeResult } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -121,15 +120,15 @@ export async function GET(request: NextRequest) {
 
     // The guest identity is a cookie a script can drop, so bound the address
     // too; every caller shares one Nominatim User-Agent and its usage policy.
-    const bucket = addressBucket("geocode:addr", request);
-    if (bucket) {
-      const perAddress = rateLimit(
-        bucket,
-        LIMITS.geocode.limit,
-        LIMITS.geocode.windowMs,
-      );
-      if (!perAddress.allowed) return tooMany(perAddress);
-    }
+    // This one is the shared (Postgres) limiter, so the cap survives cold
+    // starts and holds across instances; without a database it degrades to the
+    // in-memory counter, like every other per-address limit.
+    const perAddress = await consumeAddressLimit(
+      "geocode:addr",
+      request,
+      LIMITS.geocode,
+    );
+    if (perAddress) return tooMany(perAddress);
 
     const params = request.nextUrl.searchParams;
     const lat = params.get("lat");
