@@ -36,7 +36,53 @@ export function isWithinBounds(
   return point.longitude >= bounds.minLng || point.longitude <= bounds.maxLng;
 }
 
-/** Parse "minLng,minLat,maxLng,maxLat" as used by the /api/outages query. */
+export const WORLD_BOUNDS: BoundingBox = {
+  minLng: -180,
+  minLat: -90,
+  maxLng: 180,
+  maxLat: 90,
+};
+
+const mod360 = (n: number) => ((n % 360) + 360) % 360;
+
+/**
+ * Put a viewport into the form search_outages / search_advisories expect:
+ * latitudes within [-90, 90], longitudes within [-180, 180], and anything
+ * covering every longitude as the whole world.
+ *
+ * MapLibre's getBounds() is not wrapped. Zoomed out it reports spans like
+ * -250..250, and a view over the Pacific reports 170..200. Clamping those
+ * would drop part of the view, so longitudes are wrapped instead. A view that
+ * then crosses the antimeridian comes out with minLng > maxLng, which the SQL
+ * functions (migration 011) and isWithinBounds both read as "wraps around".
+ */
+export function normalizeBounds(bounds: BoundingBox): BoundingBox {
+  const minLat = Math.max(-90, Math.min(bounds.minLat, bounds.maxLat));
+  const maxLat = Math.min(90, Math.max(bounds.minLat, bounds.maxLat));
+
+  const span =
+    bounds.minLng <= bounds.maxLng
+      ? bounds.maxLng - bounds.minLng
+      : bounds.maxLng - bounds.minLng + 360;
+  if (span >= 360) {
+    return { ...WORLD_BOUNDS, minLat, maxLat };
+  }
+
+  if (bounds.minLng >= -180 && bounds.maxLng <= 180) {
+    return { ...bounds, minLat, maxLat };
+  }
+
+  // West edge into [-180, 180), east edge into (-180, 180], so a box ending
+  // exactly on the antimeridian keeps 180 rather than flipping to -180.
+  const minLng = mod360(bounds.minLng + 180) - 180;
+  const maxLng = 180 - mod360(180 - bounds.maxLng);
+  return { minLng, minLat, maxLng, maxLat };
+}
+
+/**
+ * Parse "minLng,minLat,maxLng,maxLat" as used by the /api/outages query.
+ * Missing or malformed means no viewport filter.
+ */
 export function parseBboxParam(raw: string | null): BoundingBox | undefined {
   if (!raw) return undefined;
 
@@ -46,7 +92,7 @@ export function parseBboxParam(raw: string | null): BoundingBox | undefined {
   }
 
   const [minLng, minLat, maxLng, maxLat] = parts;
-  return { minLng, minLat, maxLng, maxLat };
+  return normalizeBounds({ minLng, minLat, maxLng, maxLat });
 }
 
 export function formatDistance(meters: number): string {

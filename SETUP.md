@@ -69,8 +69,13 @@ without it.
 9. [`prisma/migrations/009_official_outage_sync.sql`](prisma/migrations/009_official_outage_sync.sql):
    atomic snapshot sync for official feeds, plus the utility's own name and
    customer count in search results.
+10. [`prisma/migrations/010_harden_functions_and_grants.sql`](prisma/migrations/010_harden_functions_and_grants.sql):
+    server-only rate limiting, non-callable trigger functions, pinned search_path.
+11. [`prisma/migrations/011_world_bbox_search.sql`](prisma/migrations/011_world_bbox_search.sql):
+    viewport search on planar envelopes, so world-wide and antimeridian
+    viewports return results.
 
-All nine are idempotent, so re-running them is safe.
+All eleven are idempotent, so re-running them is safe.
 
 ### 4. Enable anonymous sign-ins
 
