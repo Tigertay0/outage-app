@@ -38,6 +38,13 @@ const API = "https://api.cloudflare.com/client/v4/radar/annotations/outages";
  */
 const WINDOW = "28d";
 
+/**
+ * Most annotations one request returns. Read as a single page; a response this
+ * full may be missing open outages, so it is flagged as truncated and the sync
+ * keeps open outages it could not see.
+ */
+const ANNOTATION_LIMIT = 100;
+
 /** Nothing sensible can be drawn for an outage still open after this long. */
 const MAX_OPEN_DAYS = 14;
 
@@ -147,7 +154,7 @@ export class CloudflareRadarSource implements OutageSource {
     const token = process.env.CLOUDFLARE_RADAR_TOKEN;
     if (!token) throw new Error("CLOUDFLARE_RADAR_TOKEN is not set");
 
-    const url = `${API}?location=US&dateRange=${WINDOW}&limit=100&format=JSON`;
+    const url = `${API}?location=US&dateRange=${WINDOW}&limit=${ANNOTATION_LIMIT}&format=JSON`;
 
     const response = await fetch(url, {
       headers: {
@@ -222,6 +229,9 @@ export class CloudflareRadarSource implements OutageSource {
       });
     }
 
-    return { outages: [...outages.values()] };
+    return {
+      outages: [...outages.values()],
+      truncated: annotations.length >= ANNOTATION_LIMIT,
+    };
   }
 }

@@ -34,6 +34,13 @@ const API = "https://api.ioda.inetintel.cc.gatech.edu/v2";
  */
 const WINDOW_MS = 3 * 60 * 60 * 1000;
 
+/**
+ * Most alerts one request returns. The alerts endpoint is read as a single
+ * page; a response this full may be missing alerts, so it is flagged as
+ * truncated and the sync keeps open outages it could not see.
+ */
+const ALERT_LIMIT = 1000;
+
 /** Alerts older than this are stale even if they were the newest we saw. */
 const MAX_AGE_MS = 90 * 60 * 1000;
 
@@ -114,7 +121,7 @@ export class IodaSource implements OutageSource {
 
     const url =
       `${API}/outages/alerts?entityType=region&relatedTo=country/US` +
-      `&from=${from}&until=${until}&limit=1000`;
+      `&from=${from}&until=${until}&limit=${ALERT_LIMIT}`;
 
     const response = await fetch(url, {
       headers: { Accept: "application/json" },
@@ -192,6 +199,6 @@ export class IodaSource implements OutageSource {
       });
     }
 
-    return { outages };
+    return { outages, truncated: alerts.length >= ALERT_LIMIT };
   }
 }

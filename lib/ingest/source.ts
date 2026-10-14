@@ -71,6 +71,13 @@ export interface IngestedAdvisory {
 export interface SourceResult {
   outages?: IngestedOutage[];
   advisories?: IngestedAdvisory[];
+  /**
+   * The upstream page may have been cut off (it came back as full as the limit
+   * we asked for), so `outages` is not the whole snapshot. The runner still
+   * writes what came back but resolves nothing for this source on this run:
+   * an outage missing from a truncated page is not evidence it has ended.
+   */
+  truncated?: boolean;
 }
 
 export interface OutageSource {
